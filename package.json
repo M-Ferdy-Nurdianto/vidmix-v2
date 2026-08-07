@@ -1,0 +1,52 @@
+{
+  "name": "vidmix-v2",
+  "version": "2.0.0",
+  "description": "Desktop video-audio automation mixer with FFmpeg and React",
+  "main": "electron/main.js",
+  "scripts": {
+    "react:dev": "vite",
+    "react:build": "vite build",
+    "electron:dev": "concurrently \"npm run react:dev\" \"electron .\"",
+    "electron:build": "npm run react:build && electron-builder"
+  },
+  "dependencies": {
+    "@ffmpeg-installer/ffmpeg": "^1.1.0",
+    "fluent-ffmpeg": "^2.1.2",
+    "lucide-react": "^1.16.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-hot-toast": "^2.4.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
+    "@vitejs/plugin-react": "^4.2.1",
+    "autoprefixer": "^10.5.4",
+    "concurrently": "^8.2.2",
+    "electron": "^28.0.0",
+    "electron-builder": "^26.15.3",
+    "postcss": "^8.5.26",
+    "tailwindcss": "^4.3.3",
+    "vite": "^5.0.0"
+  },
+  "build": {
+    "appId": "com.ferdy.vidmix",
+    "productName": "Vidmix v2",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "public/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "public/favicon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}
