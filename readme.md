@@ -9,21 +9,31 @@
 <a name="english"></a>
 ## 🇬🇧 English
 
-Vidmix v2 is a **Desktop Automation Software** built with **Node.js, React, and Electron**, designed specifically with a striking **Neo-Brutalism** interface. This software leverages the power of **FFmpeg** to automatically mix video and audio with random shuffling, seamless looping, and crossfade transitions.
+### 🚀 The Ultimate Media Automation Engine for Content Creators
+Are you a content creator, video editor, or social media manager tired of manually mixing background music into dozens of videos? **Vidmix v2** is here to automate your entire workflow. 
+
+**Vidmix v2** is a high-performance **Desktop Automation Software** built with Node.js, React, and Electron. Powered by the industry-standard **FFmpeg engine**, it allows you to batch-process videos, inject randomized or custom-ordered music, apply custom looping, and render everything at blazing speeds using Hardware Acceleration (GPU/CPU Smart-Detect).
+
+All of this power is wrapped in a stunning, highly interactive **Neo-Brutalism** UI that makes batch rendering feel less like a chore and more like a premium experience.
+
+### 💡 Why Choose Vidmix v2?
+- **Massive Time Saver:** What usually takes hours in Premiere Pro or CapCut now takes minutes. Drop your videos, drop your music, and hit generate.
+- **Perfect for YouTubers & TikTokers:** Create 15-minute, 30-minute, or 1-hour looped videos (perfect for compilations, ambient videos, or Lo-Fi streams) in just one click.
+- **Zero Audio Jumps:** Professional *Fade-In* and *Fade-Out* transitions are automatically applied to the music, guaranteeing a smooth listener experience.
+- **Built for Scale:** Processes multiple heavy video files concurrently without breaking a sweat.
 
 ### 🌟 Key Features
-- **Fisher-Yates Shuffle Algorithm:** Dynamically randomizes up to 20 songs for up to 5 videos. Each generated video will have a unique sequence of songs.
-- **Interactive Custom Audio Ordering:** Choose between the classic automatic randomizer or manually set the precise order of your songs using an intuitive Drag & Drop list interface.
-- **Custom Looping & Transitions:** Set loop presets (15 mins, 30 mins, 1 hr, or custom). Videos loop seamlessly, and audio transitions are smoothed with an automatic *Fade-In* and *Fade-Out* mechanism to prevent abrupt cuts.
-- **State Persistence:** Automatically remembers the last used directories for videos, audios, and outputs.
-- **Real-Time Progress & ETA:** A full-screen interactive overlay blocks UI spamming and displays a precise progress bar along with the Estimated Time of Arrival (ETA).
-- **Safety Pre-flight Checks:** Prevents accidental overwrites by warning you if an output file name already exists before rendering begins.
+- **Smart Audio Engine:** Choose between the **Fisher-Yates Shuffle Algorithm** (automatically randomizes a unique music sequence for each video) or **Interactive Custom Ordering** (use a sleek Drag & Drop interface to set the exact playlist).
+- **Custom Looping & Seamless Transitions:** Set loop presets effortlessly. Videos loop seamlessly, and audio transitions are smoothed automatically.
+- **State Persistence:** Never lose your workflow. The app remembers your last used directories automatically.
+- **Real-Time Progress & ETA:** A full-screen interactive overlay blocks UI spamming and displays a precise progress bar along with a live Estimated Time of Arrival (ETA).
+- **Safety Pre-flight Checks:** Prevents accidental overwrites by warning you if an output file name already exists.
 
 ### 🛠️ Prerequisites
 - **Node.js** (v18 or newer)
 - **FFmpeg** installed and registered in your Windows environment `PATH`.
 
-### 🚀 How to Run
+### 💻 How to Run
 
 1. **Clone the repository:**
    ```bash
@@ -53,21 +63,31 @@ npm run electron:build
 <a name="bahasa-indonesia"></a>
 ## 🇮🇩 Bahasa Indonesia
 
-Vidmix v2 adalah perangkat lunak *desktop automation* berbasis **Node.js, React, dan Electron**, dirancang khusus dengan antarmuka **Neo-Brutalism** yang dinamis. Perangkat lunak ini memanfaatkan kekuatan **FFmpeg** untuk melakukan *mixing* video dan audio secara otomatis.
+### 🚀 Mesin Automasi Media Terbaik untuk Content Creator
+Apakah Anda seorang *content creator*, editor video, atau manajer media sosial yang lelah menggabungkan musik latar ke puluhan video secara manual? **Vidmix v2** hadir untuk mengotomatisasi seluruh alur kerja Anda.
+
+**Vidmix v2** adalah **Perangkat Lunak Automasi Desktop** berperforma tinggi yang dibangun menggunakan Node.js, React, dan Electron. Ditenagai oleh **FFmpeg**, aplikasi ini memungkinkan Anda memproses video secara massal (*batch-process*), menyuntikkan musik yang diacak atau diurutkan sendiri, menerapkan *looping* durasi panjang, dan me-render semuanya dengan kecepatan tinggi menggunakan Akselerasi Perangkat Keras (Deteksi Pintar GPU/CPU).
+
+Semua kecanggihan ini dibungkus dalam antarmuka **Neo-Brutalism** yang memukau dan interaktif, membuat proses *render* massal tidak lagi membosankan, melainkan terasa seperti pengalaman premium.
+
+### 💡 Mengapa Memilih Vidmix v2?
+- **Sangat Menghemat Waktu:** Apa yang biasanya memakan waktu berjam-jam di Premiere Pro atau CapCut kini bisa selesai dalam hitungan menit. Cukup *drop* video Anda, *drop* musiknya, dan klik *generate*.
+- **Cocok untuk YouTuber & TikToker:** Buat video *looping* 15 menit, 30 menit, atau 1 jam (sangat cocok untuk kompilasi, video suasana/ambience, atau *stream* Lo-Fi) hanya dengan satu klik.
+- **Transisi Audio Profesional:** Transisi *Fade-In* dan *Fade-Out* otomatis diterapkan pada musik, menjamin pendengar tidak akan merasakan potongan lagu yang kasar atau tiba-tiba.
+- **Diciptakan untuk Skala Besar:** Memproses banyak file video berukuran besar secara bersamaan tanpa kendala.
 
 ### 🌟 Fitur Utama
-- **Algoritma Shuffle Fisher-Yates:** Mengacak hingga 20 lagu untuk maksimal 5 video secara dinamis. Setiap video yang di-render akan memiliki urutan lagu yang benar-benar berbeda.
-- **Pengaturan Urutan Audio Interaktif:** Pilih antara pengacak otomatis (acak independen tiap video) atau atur urutan lagu secara persis sesuai keinginan Anda melalui fitur geser (*Drag & Drop*) yang mulus.
-- **Looping Kustom & Transisi Mulus:** Preset 15 menit, 30 menit, 1 jam, atau durasi kustom. Video akan di-loop tanpa henti, dan audio digabungkan dengan efek *Fade-In* serta *Fade-Out* di ujung durasi agar suara tidak terpotong tiba-tiba ("patah banget").
-- **State Persistence:** Menyimpan riwayat direktori folder (video, musik, output) terakhir yang Anda gunakan.
-- **Progress Bar & Estimasi Waktu (ETA):** Pop-up layar penuh yang mencegah klik ganda tak disengaja, lengkap dengan bar progres *real-time* dan kalkulasi sisa waktu *render*.
-- **Pengecekan File Duplikat:** Mencegah Anda menimpa file lama secara tidak sengaja dengan memunculkan peringatan jika nama file output sudah ada di folder.
+- **Mesin Audio Pintar:** Pilih antara **Algoritma Shuffle Fisher-Yates** (mengacak urutan musik secara otomatis agar berbeda di setiap video) atau **Pengaturan Interaktif Manual** (gunakan antarmuka *Drag & Drop* yang mulus untuk menentukan urutan *playlist* secara pasti).
+- **Looping Kustom & Transisi Mulus:** Preset durasi yang sangat fleksibel (15m, 30m, 1j, kustom). Video akan di-loop tanpa henti, dan audio digabungkan dengan halus.
+- **Memori Cerdas (State Persistence):** Aplikasi akan secara otomatis mengingat folder video, musik, dan output terakhir yang Anda gunakan.
+- **Progress Bar & Estimasi Waktu (ETA):** Pop-up layar penuh yang mencegah klik tak disengaja, lengkap dengan bar progres *real-time* dan kalkulasi sisa waktu *render*.
+- **Pengecekan File Duplikat:** Mencegah penimpaan file (overwrite) secara tidak sengaja dengan sistem peringatan dini.
 
 ### 🛠️ Prasyarat
 - **Node.js** (v18 atau lebih baru)
-- **FFmpeg** terinstal dan terdaftar di `PATH` environment Windows.
+- **FFmpeg** terinstal dan terdaftar di `PATH` environment Windows Anda.
 
-### 🚀 Cara Menjalankan
+### 💻 Cara Menjalankan
 
 1. **Clone repository ini:**
    ```bash
@@ -86,11 +106,11 @@ Vidmix v2 adalah perangkat lunak *desktop automation* berbasis **Node.js, React,
    ```
 
 ### 📦 Build untuk Produksi
-Untuk menjadikan aplikasi ini sebagai file `.exe` yang bisa dijalankan langsung di Windows:
-*(Pastikan Anda telah mengonfigurasi electron-builder atau modul sejenis)*
+Untuk menjadikan aplikasi ini sebagai file `.exe` mandiri yang siap diinstal di Windows:
+*(Pastikan Anda telah mengonfigurasi electron-builder)*
 ```bash
 npm run electron:build
 ```
 
 ---
-*Developed by [M-Ferdy-Nurdianto](https://github.com/M-Ferdy-Nurdianto)*
+*Created by [M-Ferdy-Nurdianto (IG: @ikifer)](https://github.com/M-Ferdy-Nurdianto)*
