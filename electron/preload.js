@@ -5,5 +5,6 @@ contextBridge.exposeInMainWorld('api', {
   selectFolder: (type) => ipcRenderer.invoke('select-folder', type),
   startRender: (options) => ipcRenderer.invoke('start-render', options),
   onRenderProgress: (callback) => ipcRenderer.on('render-progress', (event, data) => callback(data)),
-  removeRenderProgress: () => ipcRenderer.removeAllListeners('render-progress')
+  removeRenderProgress: () => ipcRenderer.removeAllListeners('render-progress'),
+  openFolder: (path) => ipcRenderer.invoke('open-folder', path)
 });

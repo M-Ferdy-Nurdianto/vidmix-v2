@@ -6,3 +6,20 @@ body {
   background-color: #F4F4F0;
   font-family: monospace;
 }
+
+/* Custom Scrollbar for neo-brutalism */
+::-webkit-scrollbar {
+  width: 14px;
+}
+::-webkit-scrollbar-track {
+  background: white;
+  border-left: 2px solid black;
+}
+::-webkit-scrollbar-thumb {
+  background: #00F0FF;
+  border: 2px solid black;
+  border-right: none;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #00D0FF;
+}

@@ -1,8 +1,10 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const ffmpeg = require('fluent-ffmpeg');
-const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
+const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path.replace('app.asar', 'app.asar.unpacked');
+const { execSync } = require('child_process');
+
 ffmpeg.setFfmpegPath(ffmpegPath);
 
 let mainWindow;
@@ -69,12 +71,18 @@ app.whenReady().then(createWindow);
 
 ipcMain.handle('get-config', () => loadConfig());
 
+ipcMain.handle('open-folder', (event, folderPath) => {
+  if (fs.existsSync(folderPath)) {
+    shell.openPath(folderPath);
+  }
+});
+
 ipcMain.handle('select-folder', async (event, type) => {
   const config = loadConfig();
-  let defaultPath = app.getPath('videos');
   if (type === 'video-files' && config.lastVideoDir) defaultPath = config.lastVideoDir;
   if (type === 'audio-files' && config.lastAudioDir) defaultPath = config.lastAudioDir;
   if (type === 'output' && config.lastOutputDir) defaultPath = config.lastOutputDir;
+  if (type === 'watermark' && config.lastWatermarkDir) defaultPath = config.lastWatermarkDir;
 
   let properties = ['openDirectory'];
   let filters = [];
@@ -85,6 +93,9 @@ ipcMain.handle('select-folder', async (event, type) => {
   } else if (type === 'audio-files') {
     properties = ['openFile', 'multiSelections'];
     filters = [{ name: 'Audios', extensions: ['mp3', 'wav', 'aac', 'm4a'] }];
+  } else if (type === 'watermark') {
+    properties = ['openFile'];
+    filters = [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg'] }];
   }
 
   const result = await dialog.showOpenDialog(mainWindow, {
@@ -94,12 +105,13 @@ ipcMain.handle('select-folder', async (event, type) => {
   });
 
   if (!result.canceled && result.filePaths.length > 0) {
-    const isFile = type === 'video-files' || type === 'audio-files';
+    const isFile = type === 'video-files' || type === 'audio-files' || type === 'watermark';
     const folderPath = isFile ? path.dirname(result.filePaths[0]) : result.filePaths[0];
     
     if (type === 'video-files') saveConfig({ lastVideoDir: folderPath });
     if (type === 'audio-files') saveConfig({ lastAudioDir: folderPath });
     if (type === 'output') saveConfig({ lastOutputDir: folderPath });
+    if (type === 'watermark') saveConfig({ lastWatermarkDir: folderPath });
     
     return isFile ? result.filePaths : result.filePaths[0];
   }
@@ -116,8 +128,20 @@ function shuffleArray(array) {
   return arr;
 }
 
+function detectBestEncoder() {
+  try {
+    const output = execSync('wmic path win32_VideoController get name', { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] }).toLowerCase();
+    if (output.includes('nvidia')) return 'h264_nvenc';
+    if (output.includes('amd') || output.includes('radeon')) return 'h264_amf';
+    if (output.includes('intel')) return 'h264_qsv';
+  } catch (e) {
+    console.error('Deteksi GPU gagal, kembali ke CPU:', e);
+  }
+  return 'libx264';
+}
+
 ipcMain.handle('start-render', async (event, options) => {
-  const { videos, audios, outputDir, customName, loopDuration } = options;
+  const { videos, audios, outputDir, customName, loopDuration, watermark, allowOverwrite, audioOrderType } = options;
   
   if (!videos.length || !audios.length || !outputDir) {
     throw new Error('Video, Musik, dan Folder Output wajib diisi!');
@@ -131,11 +155,13 @@ ipcMain.handle('start-render', async (event, options) => {
   const results = [];
 
   // Pre-flight check: pastikan file output belum ada untuk mencegah overwrite tanpa sengaja
-  for (let i = 0; i < videos.length; i++) {
-    const outputFileName = `${customName} ${i + 1}.mp4`;
-    const outputPath = path.join(outputDir, outputFileName);
-    if (fs.existsSync(outputPath)) {
-      throw new Error(`File '${outputFileName}' sudah ada di folder output! Silakan ganti Kustom Nama Output atau hapus file tersebut.`);
+  if (!allowOverwrite) {
+    for (let i = 0; i < videos.length; i++) {
+      const outputFileName = `${customName} ${i + 1}.mp4`;
+      const outputPath = path.join(outputDir, outputFileName);
+      if (fs.existsSync(outputPath)) {
+        throw new Error(`File '${outputFileName}' sudah ada! Aktifkan "Timpa File (Overwrite)" atau ganti nama output.`);
+      }
     }
   }
 
@@ -143,56 +169,90 @@ ipcMain.handle('start-render', async (event, options) => {
   try {
     for (let i = 0; i < videos.length; i++) {
       const videoPath = videos[i];
-      // Acak lagu tiap video di-generate
-      const randomizedAudios = shuffleArray(audios);
+      // Tentukan urutan lagu (acak atau sesuai urutan custom)
+      const randomizedAudios = audioOrderType === 'custom' ? [...audios] : shuffleArray(audios);
       const outputFileName = `${customName} ${i + 1}.mp4`;
       const outputPath = path.join(outputDir, outputFileName);
 
-      await new Promise((resolve, reject) => {
-        let command = ffmpeg();
-        
-        // Input Video (Looping infinitely until time runs out)
-        command.input(videoPath).inputOptions(['-stream_loop', '-1']);
-        
-        // Input Multiple Audios
-        randomizedAudios.forEach(audio => {
-          command.input(audio);
-        });
+      let currentEncoder = detectBestEncoder();
 
-        // Filter Complex: Gabungkan audio dengan concat (paling aman untuk file acak), lalu beri efek fade in & fade out di ujung durasi agar tidak terpotong tiba-tiba
-        const audioInputs = randomizedAudios.map((_, idx) => `[${idx + 1}:a]`).join('');
-        const filterComplex = `${audioInputs}concat=n=${randomizedAudios.length}:v=0:a=1[concat_a];[concat_a]afade=t=in:st=0:d=2,afade=t=out:st=${totalDurationSec - 2}:d=2[outa]`;
+      const runFFmpeg = (encoderToUse) => {
+        return new Promise((resolve, reject) => {
+          let command = ffmpeg();
+          
+          command.input(videoPath).inputOptions(['-stream_loop', '-1']);
+          if (watermark) command.input(watermark);
+          randomizedAudios.forEach(audio => command.input(audio));
 
-        command
-          .complexFilter(filterComplex)
-          .outputOptions([
-            '-map 0:v',
+          const audioStartIndex = watermark ? 2 : 1;
+          const audioInputs = randomizedAudios.map((_, idx) => `[${idx + audioStartIndex}:a]`).join('');
+          let filterComplex = `${audioInputs}concat=n=${randomizedAudios.length}:v=0:a=1[concat_a];[concat_a]loudnorm,afade=t=in:st=0:d=2,afade=t=out:st=${totalDurationSec - 2}:d=2[outa]`;
+
+          if (watermark) {
+            filterComplex += `;[1:v]scale=150:-1[wm];[0:v][wm]overlay=W-w-20:H-h-20[outv]`;
+          }
+
+          let outputOpts = [
+            watermark ? '-map [outv]' : '-map 0:v',
             '-map [outa]',
             `-t ${totalDurationSec}`,
-            '-c:v libx264',
-            '-preset ultrafast',
+            `-c:v ${encoderToUse}`,
+            '-pix_fmt yuv420p',
             '-c:a aac',
             '-shortest'
-          ])
-          .on('progress', (progress) => {
-            if (mainWindow) {
-              mainWindow.webContents.send('render-progress', {
-                currentVideo: i + 1,
-                totalVideos: videos.length,
-                percent: progress.percent || 0,
-                timemark: progress.timemark
-              });
-            }
-          })
-          .save(outputPath)
-          .on('end', () => {
-            results.push(outputPath);
-            resolve();
-          })
-          .on('error', (err) => {
-            reject(err);
-          });
-      });
+          ];
+
+          if (allowOverwrite) outputOpts.push('-y');
+
+          if (encoderToUse === 'libx264') {
+            outputOpts.push('-preset', 'ultrafast');
+          } else if (encoderToUse === 'h264_nvenc') {
+            outputOpts.push('-preset', 'fast');
+          }
+
+          command
+            .complexFilter(filterComplex)
+            .outputOptions(outputOpts)
+            .on('progress', (progress) => {
+              if (mainWindow) {
+                let percent = progress.percent || 0;
+                if ((!percent || percent <= 0) && progress.timemark) {
+                  const parts = progress.timemark.split(':');
+                  if (parts.length >= 3) {
+                    const currentSecs = parseFloat(parts[0]) * 3600 + parseFloat(parts[1]) * 60 + parseFloat(parts[2]);
+                    percent = (currentSecs / totalDurationSec) * 100;
+                  }
+                }
+
+                mainWindow.webContents.send('render-progress', {
+                  currentVideo: i + 1,
+                  totalVideos: videos.length,
+                  percent: Math.min(Math.max(percent, 0), 100),
+                  timemark: progress.timemark
+                });
+              }
+            })
+            .save(outputPath)
+            .on('end', () => {
+              results.push(outputPath);
+              resolve();
+            })
+            .on('error', (err, stdout, stderr) => {
+              reject(new Error(stderr || err.message));
+            });
+        });
+      };
+
+      try {
+        await runFFmpeg(currentEncoder);
+      } catch (err) {
+        if (currentEncoder !== 'libx264') {
+          console.log(`Render GPU (${currentEncoder}) gagal, mencoba ulang secara otomatis dengan CPU (libx264)...`);
+          await runFFmpeg('libx264');
+        } else {
+          throw err; // Jika CPU juga gagal, throw error
+        }
+      }
     }
   } finally {
     isRendering = false;

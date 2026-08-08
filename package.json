@@ -40,9 +40,12 @@
       "public/**/*",
       "package.json"
     ],
+    "asarUnpack": [
+      "node_modules/@ffmpeg-installer/**/*"
+    ],
     "win": {
       "target": "nsis",
-      "icon": "public/favicon.ico"
+      "icon": "public/android-chrome-512x512.png"
     },
     "nsis": {
       "oneClick": false,
