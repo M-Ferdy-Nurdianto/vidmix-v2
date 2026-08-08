@@ -253,7 +253,7 @@ export default function App() {
       <div className="border-4 border-black bg-[#FFE500] p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] mb-6 flex justify-between items-center transform hover:-translate-y-0.5 transition-transform">
         <div>
           <h1 className="text-2xl font-black tracking-wider flex items-center gap-2">
-            <img src="/favicon-32x32.png" className="w-8 h-8" alt="Vidmix Logo" /> VIDMIX <span className="bg-black text-white px-2 py-0.5 text-sm">v2.0</span>
+            <img src="./favicon-32x32.png" className="w-8 h-8" alt="Vidmix Logo" /> VIDMIX <span className="bg-black text-white px-2 py-0.5 text-sm">v2.0</span>
           </h1>
           <p className="text-xs font-bold mt-1">High-Speed FFmpeg Automation & Random Audio Mixer Engine</p>
         </div>
@@ -415,10 +415,10 @@ export default function App() {
                 <p className="text-xs font-bold mb-4">Setiap video akan memproses urutan musik yang berbeda secara otomatis (Algoritma Fisher-Yates).</p>
                 <div className="space-y-2 font-mono text-xs opacity-75">
                   <div className="bg-white border-2 border-black p-2 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-                    <span className="font-black text-purple-700">{customName} 1.mp4</span> $\rightarrow$ [ Urutan Acak ]
+                    <span className="font-black text-purple-700">{customName} 1.mp4</span> → [ Urutan Acak ]
                   </div>
                   <div className="bg-white border-2 border-black p-2 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-                    <span className="font-black text-purple-700">{customName} 2.mp4</span> $\rightarrow$ [ Urutan Acak ]
+                    <span className="font-black text-purple-700">{customName} 2.mp4</span> → [ Urutan Acak ]
                   </div>
                 </div>
               </div>
