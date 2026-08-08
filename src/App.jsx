@@ -182,7 +182,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F4F4F0] text-zinc-900 font-mono p-6 select-none">
+    <div className="min-h-screen bg-[#F4F4F0] text-zinc-900 font-mono p-6 select-none relative pb-16">
       <Toaster position="top-right" />
       
       {/* Full-screen Render Overlay */}
@@ -254,6 +254,16 @@ export default function App() {
         <div>
           <h1 className="text-2xl font-black tracking-wider flex items-center gap-2">
             <img src="./favicon-32x32.png" className="w-8 h-8" alt="Vidmix Logo" /> VIDMIX <span className="bg-black text-white px-2 py-0.5 text-sm">v2.0</span>
+            <div className="ml-3 bg-white border-2 border-black px-2 py-1 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] text-[10px] font-black flex items-center gap-3">
+              <span className="text-zinc-500">Creator:</span>
+              <a href="https://instagram.com/ikifer" target="_blank" rel="noreferrer" className="hover:text-pink-600 transition-colors">
+                Ig: @ikifer
+              </a>
+              <div className="w-1 h-1 bg-black rounded-full"></div>
+              <a href="https://github.com/M-Ferdy-Nurdianto" target="_blank" rel="noreferrer" className="hover:text-[#7000FF] transition-colors">
+                Github: M-Ferdy-Nurdianto
+              </a>
+            </div>
           </h1>
           <p className="text-xs font-bold mt-1">High-Speed FFmpeg Automation & Random Audio Mixer Engine</p>
         </div>
