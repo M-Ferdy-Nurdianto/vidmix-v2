@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Elegant Music Visualizer</title>
+    <!-- Import a beautiful font -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #d533b3;
+            --bg-panel: rgba(15, 15, 20, 0.75);
+            --border: rgba(255, 255, 255, 0.1);
+        }
+
+        * {
+            box-sizing: border-box;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #050505;
+            color: #fff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        /* The canvas will scale visually to fit screen, but keep internal resolution */
+        #canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1;
+        }
+
+        canvas {
+            object-fit: contain;
+            max-width: 100%;
+            max-height: 100%;
+            filter: drop-shadow(0 0 20px rgba(0, 0, 0, 0.5));
+        }
+
+        /* Elegant UI Panel */
+        #ui-panel {
+            position: absolute;
+            left: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 340px;
+            max-height: 90vh;
+            overflow-y: auto;
+            background: var(--bg-panel);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 24px;
+            z-index: 10;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+            transition: opacity 0.3s, transform 0.3s;
+        }
+
+        #ui-panel.hidden {
+            opacity: 0;
+            pointer-events: none;
+            transform: translate(-20px, -50%);
+        }
+
+        /* Custom Scrollbar for Panel */
+        #ui-panel::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        #ui-panel::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+        }
+
+        h1 {
+            font-size: 20px;
+            font-weight: 600;
+            margin: 0 0 20px 0;
+            text-align: center;
+            letter-spacing: 1px;
+            color: #fff;
+            text-transform: uppercase;
+        }
+
+        .section {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+
+        h3 {
+            font-size: 14px;
+            color: #aaa;
+            margin: 0 0 12px 0;
+            font-weight: 400;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .control-group {
+            margin-bottom: 12px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .control-group.row {
+            flex-direction: row;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        label {
+            font-size: 13px;
+            color: #ddd;
+            margin-bottom: 6px;
+        }
+
+        input[type="file"],
+        select,
+        input[type="text"],
+        input[type="number"] {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 8px 12px;
+            color: #fff;
+            font-size: 13px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        input[type="file"] {
+            padding: 6px;
+            font-size: 11px;
+        }
+
+        select:focus,
+        input[type="text"]:focus {
+            border-color: var(--primary);
+        }
+
+        input[type="color"] {
+            background: none;
+            border: none;
+            width: 30px;
+            height: 30px;
+            padding: 0;
+            cursor: pointer;
+            border-radius: 50%;
+            overflow: hidden;
+        }
+
+        input[type="color"]::-webkit-color-swatch-wrapper {
+            padding: 0;
+        }
+
+        input[type="color"]::-webkit-color-swatch {
+            border: none;
+            border-radius: 50%;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            accent-color: var(--primary);
+        }
+
+        .btn-hide {
+            width: 100%;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-hide:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        audio {
+            width: 100%;
+            margin-top: 15px;
+            height: 36px;
+            border-radius: 8px;
+        }
+
+        /* Overlay hint to bring back UI */
+        #hint {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.6);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            z-index: 5;
+            opacity: 0;
+            transition: opacity 0.5s;
+            pointer-events: none;
+            backdrop-filter: blur(4px);
+        }
+
+        #hint.show {
+            opacity: 1;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="canvas-container">
+        <!-- Default Canvas (1080p is standard for YouTube) -->
+        <canvas id="visualizer" width="1920" height="1080"></canvas>
+    </div>
+
+    <div id="hint">Tekan ESC untuk menampilkan panel kontrol</div>
+
+    <div id="ui-panel">
+        <h1>Visualizer Setup</h1>
+
+        <div class="section">
+            <h3>Media Source</h3>
+            <div class="control-group">
+                <label>Audio / Lagu (MP3/WAV)</label>
+                <input type="file" id="audio-input" accept="audio/*">
+            </div>
+            <div class="control-group">
+                <label>Background Image (Opsional)</label>
+                <input type="file" id="bg-input" accept="image/*">
+            </div>
+        </div>
+
+        <div class="section">
+            <h3>Tampilan</h3>
+
+            <div class="control-group">
+                <label>Style Visualizer</label>
+                <select id="viz-style">
+                    <option value="bars">Elegant Bars (Linear)</option>
+                    <option value="circle">Avee Circle (Melingkar)</option>
+                </select>
+            </div>
+
+            <div class="control-group row">
+                <label>Warna Visualizer</label>
+                <input type="color" id="viz-color" value="#d533b3">
+            </div>
+
+            <div class="control-group row" style="margin-top: 8px;">
+                <label>Warna Spektrum Dinamis?</label>
+                <input type="checkbox" id="dynamic-color">
+            </div>
+
+            <div class="control-group">
+                <label>Ketebalan Bar (<span id="width-val">4</span>)</label>
+                <input type="range" id="bar-width" min="1" max="25" value="4">
+            </div>
+
+            <div class="control-group">
+                <label>Jarak Antar Bar (<span id="spacing-val">3</span>)</label>
+                <input type="range" id="bar-spacing" min="0" max="20" value="3">
+            </div>
+
+            <div class="control-group">
+                <label>Tinggi Optimalisasi (<span id="height-val">1.0</span>x)</label>
+                <input type="range" id="bar-height-mult" min="0.1" max="3.0" step="0.1" value="1.0">
+            </div>
+
+            <div class="control-group row"
+                style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px; margin-top: 8px;">
+                <label>Particles (Efek Debu Kekinian/Glow)</label>
+                <input type="checkbox" id="particles-toggle" checked>
+            </div>
+        </div>
+
+        <div class="section">
+            <h3>Output Rendering</h3>
+            <div class="control-group row" style="gap: 10px; margin-bottom: 8px;">
+                <div style="flex:1;">
+                    <label>Resolusi</label>
+                    <select id="resolution">
+                        <option value="480">480p</option>
+                        <option value="720">720p</option>
+                        <option value="1080" selected>1080p</option>
+                        <option value="1440">1440p</option>
+                        <option value="2160">2160p</option>
+                    </select>
+                </div>
+                <div style="flex:1;">
+                    <label>Ukuran / Platform</label>
+                    <select id="aspect-ratio">
+                        <option value="16:9" selected>YouTube (16:9)</option>
+                        <option value="9:16">TikTok/Reels (9:16)</option>
+                        <option value="1:1">Instagram (1:1)</option>
+                        <option value="4:3">Old TV (4:3)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="control-group row"
+                style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px; margin-bottom: 12px; margin-top: 4px;">
+                <label>Optimasi Render Cepat (Tanpa Glow ⚡)</label>
+                <input type="checkbox" id="fast-render" checked>
+            </div>
+            <div class="control-group">
+                <label>Export to Video (Rekam Layar Internal)</label>
+                <button id="record-btn" class="btn-hide"
+                    style="margin-top: 5px; color: #d533b3; border-color: #d533b3;">� Export Video Full Lagu
+                    (Auto)</button>
+            </div>
+            <p style="font-size: 11px; color: #888; margin-top: 10px;">Format: WebM. Saat export berjalan (Loading),
+                biarkan tab tetap terbuka agar selesai sempurna.</p>
+        </div>
+
+        <button id="hide-btn" class="btn-hide">Hide Panel (Sembunyikan UI)</button>
+        <audio id="audio-player" controls></audio>
+    </div>
+
+    <!-- EXPORT OVERLAY (LOADING SCREEN) -->
+    <div id="export-overlay"
+        style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.9); z-index:9999; flex-direction:column; justify-content:center; align-items:center;">
+        <h2 style="color:white; margin-bottom: 20px; font-weight:600;">Memproses / Rendering Video...</h2>
+        <div
+            style="width: 80%; max-width: 600px; height: 20px; background: #333; border-radius: 10px; overflow: hidden; border: 1px solid rgba(255,255,255,0.2);">
+            <div id="export-progress"
+                style="width: 0%; height: 100%; background: linear-gradient(90deg, #d533b3, #8a2be2); transition: width 0.3s; box-shadow: 0 0 10px #d533b3;">
+            </div>
+        </div>
+        <p id="export-text" style="color:#ddd; margin-top: 15px; font-size: 14px;">0% - Mohon jangan pindah tab browser!
+        </p>
+        <button id="cancel-export"
+            style="margin-top: 30px; padding: 10px 24px; background: transparent; border: 1px solid #ff4d4d; color: #ff4d4d; border-radius: 8px; cursor: pointer; transition: 0.2s;">Batalkan
+            Export</button>
+    </div>
+
+    <script src="https://unpkg.com/webm-muxer/build/webm-muxer.js"></script>
+    <script src="index.js"></script>
+</body>
+
+</html>

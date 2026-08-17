@@ -1,11 +1,20 @@
 const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const ffmpeg = require('fluent-ffmpeg');
 const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path.replace('app.asar', 'app.asar.unpacked');
 const { execSync } = require('child_process');
 
 ffmpeg.setFfmpegPath(ffmpegPath);
+
+// Optional: ffprobe for video duration detection
+try {
+  const ffprobePath = require('@ffprobe-installer/ffprobe').path.replace('app.asar', 'app.asar.unpacked');
+  ffmpeg.setFfprobePath(ffprobePath);
+} catch (e) {
+  console.warn('ffprobe not available, some features may be limited:', e.message);
+}
 
 let mainWindow;
 let activeFFmpegCommand = null;
@@ -235,7 +244,12 @@ function shuffleArray(array) {
 
 function detectBestEncoder() {
   try {
-    const output = execSync('wmic path win32_VideoController get name', { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] }).toLowerCase();
+    let output = '';
+    try {
+      output = execSync('powershell "Get-CimInstance Win32_VideoController | Select-Object -ExpandProperty Name"', { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] }).toLowerCase();
+    } catch (cimErr) {
+      output = execSync('wmic path win32_VideoController get name', { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] }).toLowerCase();
+    }
     if (output.includes('nvidia')) return 'h264_nvenc';
     if (output.includes('amd') || output.includes('radeon')) return 'h264_amf';
     if (output.includes('intel')) return 'h264_qsv';
@@ -272,10 +286,181 @@ function getWindowsFont(fontFamily, isBold, isItalic) {
     else suffix = 'i';
   }
   
-  const fs = require('fs');
-  const pathToCheck = `C:/Windows/Fonts/${base}${suffix}.ttf`;
-  if (fs.existsSync(pathToCheck)) return pathToCheck;
-  return `C:/Windows/Fonts/${base}.ttf`;
+  const winDir = process.env.WINDIR || 'C:\\Windows';
+  const fontsDir = path.join(winDir, 'Fonts').replace(/\\/g, '/');
+  
+  const exactPath = `${fontsDir}/${base}${suffix}.ttf`;
+  if (fs.existsSync(exactPath)) return exactPath;
+  
+  const basePath = `${fontsDir}/${base}.ttf`;
+  if (fs.existsSync(basePath)) return basePath;
+  
+  const fallbackPath = `${fontsDir}/arial.ttf`;
+  if (fs.existsSync(fallbackPath)) return fallbackPath;
+  
+  return null;
+}
+
+// ========== HELPER: Build spectrum filter chain (reusable for start-render & render-editor) ==========
+function buildSpectrumFilter(layer, specIdx, lastOutputLabel, filterParts) {
+  const specOutput = `spec_out_${specIdx}`;
+  const isRainbow = layer.colorMode === 'rainbow_running' || layer.colorMode === 'rainbow_linear';
+  const hexColor = isRainbow ? '0xffffff' : (layer.color && layer.color.startsWith('#') ? '0x' + layer.color.substring(1) : layer.color || '0xffffff');
+  const scale = layer.scale || 1;
+  const overlayX = `(main_w*(${layer.x}/100))-overlay_w/2`;
+  const overlayY = `(main_h*(${layer.y}/100))-overlay_h/2`;
+
+  if (layer.shape === 'circular') {
+    // --- CIRCULAR SPECTRUM ---
+    const size = 500;
+    // Gunakan showfreqs mode=bar karena tumbuh dari bawah (Y=H) ke atas (Y=0)
+    filterParts.push(`[aud_spec_${specIdx}]showfreqs=size=${size}x${size}:mode=bar:fscale=log:colors=${hexColor}[wave_raw_${specIdx}]`);
+    filterParts.push(`[wave_raw_${specIdx}]format=rgba,colorkey=black:0.01:0.3[wave_trans_${specIdx}]`);
+    
+    // Polar wrap menggunakan geq
+    // R_inner adalah radius dalam (tempat wave dimulai). Jika ada gambar, R_inner = size/4.
+    const hasCenterImage = !!layer.centerImageIndex;
+    const rInnerExpr = hasCenterImage ? '(H/4)' : '(H/8)';
+    
+    // Rumus memetakan radius output (r) ke kordinat Y input (coordY)
+    // r = R_inner -> coordY = H
+    // r = H/2 -> coordY = 0
+    // coordY = H * (H/2 - r) / (H/2 - R_inner)
+    
+    const coordX = `mod((2*W/(2*PI))*(PI+atan2(0.5*H-Y,X-W/2)),W)`;
+    const rExpr = `hypot(0.5*H-Y,X-W/2)`;
+    const coordY = `H*(H/2-${rExpr})/(H/2-${rInnerExpr})`;
+    
+    // Mapping sederhana tanpa perhitungan warna pelangi di dalam geq (jauh lebih cepat)
+    filterParts.push(`[wave_trans_${specIdx}]geq=r='r(${coordX}, ${coordY})':g='g(${coordX}, ${coordY})':b='b(${coordX}, ${coordY})':a='if(lt(${rExpr},${rInnerExpr}), 0, alpha(${coordX}, ${coordY}))'[wave_circ_${specIdx}]`);
+    
+    let toOverlay = `wave_circ_${specIdx}`;
+    
+    // Rainbow coloring menggunakan hue filter (diaplikasikan setelah geq)
+    if (isRainbow) {
+      if (layer.colorMode === 'rainbow_running') {
+        filterParts.push(`[${toOverlay}]hue=H=t*120:s=3[wave_hue_${specIdx}]`);
+      } else {
+        filterParts.push(`[${toOverlay}]hue=H=90:s=3[wave_hue_${specIdx}]`);
+      }
+      toOverlay = `wave_hue_${specIdx}`;
+    }
+    
+    // Center image overlay
+    if (layer.centerImageIndex) {
+      const imgSize = Math.round(size / 2);
+      filterParts.push(`[${layer.centerImageIndex}:v]scale=${imgSize}:${imgSize}:force_original_aspect_ratio=decrease,pad=${imgSize}:${imgSize}:(ow-iw)/2:(oh-ih)/2:color=black@0.0,format=rgba[img_scaled_${specIdx}]`);
+      filterParts.push(`[img_scaled_${specIdx}]vignette=PI/2:mode=backward[img_circ_${specIdx}]`);
+      filterParts.push(`[${toOverlay}][img_circ_${specIdx}]overlay=(W-w)/2:(H-h)/2[wave_with_img_${specIdx}]`);
+      toOverlay = `wave_with_img_${specIdx}`;
+    }
+    
+    filterParts.push(`[${toOverlay}]scale=iw*${scale}:ih*${scale}[spec_scaled_${specIdx}]`);
+    filterParts.push(`[${lastOutputLabel}][spec_scaled_${specIdx}]overlay=${overlayX}:${overlayY}[${specOutput}]`);
+    
+  } else {
+    // --- LINEAR SPECTRUM (mirip beat folder: elegant bars) ---
+    const width = 800;
+    const height = 200;
+    // mode=p2p = point-to-point wave, lebih halus. rate=25 = sinkron fps
+    filterParts.push(`[aud_spec_${specIdx}]showwaves=size=${width}x${height}:mode=p2p:rate=25:colors=${hexColor}:scale=sqrt[wave_raw_${specIdx}]`);
+    filterParts.push(`[wave_raw_${specIdx}]format=rgba,colorkey=black:0.01:0.3[wave_trans_${specIdx}]`);
+    
+    let toOverlay = `wave_trans_${specIdx}`;
+    
+    // Rainbow coloring menggunakan hue filter (SANGAT ringan vs geq)
+    if (isRainbow) {
+      if (layer.colorMode === 'rainbow_running') {
+        filterParts.push(`[${toOverlay}]hue=H=t*60:s=3[wave_hue_${specIdx}]`);
+      } else {
+        filterParts.push(`[${toOverlay}]hue=H=90:s=3[wave_hue_${specIdx}]`);
+      }
+      toOverlay = `wave_hue_${specIdx}`;
+    }
+    
+    filterParts.push(`[${toOverlay}]scale=iw*${scale}:ih*${scale}[spec_scaled_${specIdx}]`);
+    filterParts.push(`[${lastOutputLabel}][spec_scaled_${specIdx}]overlay=${overlayX}:${overlayY}[${specOutput}]`);
+  }
+  
+  return specOutput;
+}
+
+// ========== HELPER: Build text drawtext filter (reusable) ==========
+function buildTextFilter(layer, lastOutputLabel, filterParts) {
+  const safeText = (layer.content || '').replace(/[':]/g, '\\$&');
+  const fontSize = parseInt(layer.fontSize) || 24;
+  // Fix: properly handle hex color for FFmpeg (both # and non-# formats)
+  let fontColor = layer.color || 'white';
+  if (fontColor.startsWith('#')) {
+    fontColor = '0x' + fontColor.substring(1);
+  }
+  const resolvedFont = getWindowsFont(layer.fontFamily, layer.fontWeight === 'bold', layer.fontStyle === 'italic');
+  const fontFile = resolvedFont ? `fontfile='${resolvedFont.replace(/\\/g, '/')}':` : '';
+  const textX = `(w*(${layer.x}/100))-text_w/2`;
+  const textY = `(h*(${layer.y}/100))-text_h/2`;
+  const currentOutput = `t${Math.random().toString(36).substr(2, 5)}`;
+  
+  filterParts.push(`[${lastOutputLabel}]drawtext=${fontFile}text='${safeText}':fontcolor=${fontColor}:fontsize=${fontSize}:x=${textX}:y=${textY}:shadowcolor=black:shadowx=2:shadowy=2[${currentOutput}]`);
+  return currentOutput;
+}
+
+// ========== HELPER: Build image/sticker/watermark overlay filter (reusable) ==========
+function buildImageOverlayFilter(layer, inputObj, lastOutputLabel, filterParts) {
+  const currentOutput = `v${inputObj.index}`;
+  const scale = layer.scale || 1;
+  filterParts.push(`[${inputObj.index}:v]scale=iw*${scale}:ih*${scale}[scaled_${inputObj.index}]`);
+  
+  const overlayX = `(main_w*(${layer.x}/100))-overlay_w/2`;
+  const overlayY = `(main_h*(${layer.y}/100))-overlay_h/2`;
+  let overlayFilter = `[${lastOutputLabel}][scaled_${inputObj.index}]overlay=${overlayX}:${overlayY}`;
+  if (path.extname(layer.src).toLowerCase() === '.gif') overlayFilter += `:shortest=1`;
+  overlayFilter += `[${currentOutput}]`;
+  
+  filterParts.push(overlayFilter);
+  return currentOutput;
+}
+
+// ========== HELPER: Get video duration using ffprobe ==========
+function getVideoDuration(videoPath) {
+  return new Promise((resolve, reject) => {
+    ffmpeg.ffprobe(videoPath, (err, metadata) => {
+      if (err) return reject(err);
+      resolve(metadata.format.duration || 10);
+    });
+  });
+}
+
+// ========== HELPER: Create ping-pong (forward+reverse) video temp file ==========
+function createPingPongVideo(videoPath) {
+  return new Promise((resolve, reject) => {
+    const tempDir = os.tmpdir();
+    const tempFile = path.join(tempDir, `vidmix_pingpong_${Date.now()}.mp4`);
+    
+    let command = ffmpeg();
+    command.input(videoPath);
+    command.input(videoPath);
+    
+    // Filter: ambil video asli + versi reverse, concat keduanya
+    command.complexFilter([
+      '[0:v]setpts=PTS-STARTPTS[forward]',
+      '[1:v]reverse,setpts=PTS-STARTPTS[backward]',
+      '[forward][backward]concat=n=2:v=1:a=0[outv]'
+    ]);
+    
+    command
+      .outputOptions([
+        '-map [outv]',
+        '-an',  // no audio needed, audio handled separately
+        '-c:v libx264',
+        '-preset ultrafast',
+        '-crf 18',
+        '-pix_fmt yuv420p',
+        '-y'
+      ])
+      .save(tempFile)
+      .on('end', () => resolve(tempFile))
+      .on('error', (err) => reject(err));
+  });
 }
 
 ipcMain.handle('start-render', async (event, options) => {
@@ -292,6 +477,7 @@ ipcMain.handle('start-render', async (event, options) => {
   if (typeof loopDuration === 'number') totalDurationSec = loopDuration * 60;
 
   const results = [];
+  const tempFiles = []; // Track temp files for cleanup
 
   // Pre-flight check: pastikan file output belum ada untuk mencegah overwrite tanpa sengaja
   if (!allowOverwrite) {
@@ -319,6 +505,28 @@ ipcMain.handle('start-render', async (event, options) => {
 
       if (isRenderCanceled) break;
 
+      // ===== PING-PONG LOOPING: Buat video forward+reverse untuk seamless loop =====
+      let loopVideoPath = videoPath;
+      try {
+        if (mainWindow) {
+          mainWindow.webContents.send('render-progress', {
+            currentVideo: i + 1,
+            totalVideos: videos.length,
+            percent: 0,
+            timemark: '00:00:00'
+          });
+        }
+        console.log(`[Video ${i+1}] Membuat ping-pong loop (forward + reverse)...`);
+        const pingPongFile = await createPingPongVideo(videoPath);
+        tempFiles.push(pingPongFile);
+        loopVideoPath = pingPongFile;
+        console.log(`[Video ${i+1}] Ping-pong loop siap: ${pingPongFile}`);
+      } catch (ppErr) {
+        console.warn(`[Video ${i+1}] Gagal buat ping-pong, fallback ke loop biasa:`, ppErr.message);
+        // Fallback ke video asli jika ping-pong gagal
+        loopVideoPath = videoPath;
+      }
+
       let currentEncoder = detectBestEncoder();
 
       const runFFmpeg = (encoderToUse) => {
@@ -326,7 +534,8 @@ ipcMain.handle('start-render', async (event, options) => {
           let command = ffmpeg();
           activeFFmpegCommand = command;
           
-          command.input(videoPath).inputOptions(['-stream_loop', '-1']);
+          // Gunakan ping-pong video yang sudah di-preprocess
+          command.input(loopVideoPath).inputOptions(['-stream_loop', '-1']);
           if (watermark) command.input(watermark);
           randomizedAudios.forEach(audio => command.input(audio));
 
@@ -394,119 +603,18 @@ ipcMain.handle('start-render', async (event, options) => {
           }
 
           let specIdx = 0;
-          // Apply ALL Layers in Z-Index Order
+          // Apply ALL Layers in Z-Index Order (menggunakan helper functions)
           sortedLayers.forEach(layer => {
             if (['watermark', 'sticker', 'image'].includes(layer.type)) {
               const inputObj = imageInputs.find(img => img.layer.id === layer.id);
               if (!inputObj) return;
-              
-              const currentOutput = `v${inputObj.index}`;
-              const scale = layer.scale || 1;
-              filterParts.push(`[${inputObj.index}:v]scale=iw*${scale}:ih*${scale}[scaled_${inputObj.index}]`);
-              
-              const overlayX = `(main_w*(${layer.x}/100))-overlay_w/2`;
-              const overlayY = `(main_h*(${layer.y}/100))-overlay_h/2`;
-              let overlayFilter = `[${lastOutputLabel}][scaled_${inputObj.index}]overlay=${overlayX}:${overlayY}`;
-              if (path.extname(layer.src).toLowerCase() === '.gif') overlayFilter += `:shortest=1`;
-              overlayFilter += `[${currentOutput}]`;
-              
-              filterParts.push(overlayFilter);
-              lastOutputLabel = currentOutput;
+              lastOutputLabel = buildImageOverlayFilter(layer, inputObj, lastOutputLabel, filterParts);
               
             } else if (layer.type === 'text') {
-              const safeText = (layer.content || '').replace(/[':]/g, '\\$&');
-              const fontSize = parseInt(layer.fontSize) || 24;
-              const fontColor = (layer.color || 'white').replace('#', '0x');
-              const resolvedFont = getWindowsFont(layer.fontFamily, layer.fontWeight === 'bold', layer.fontStyle === 'italic');
-              const fontFile = resolvedFont ? `fontfile='${resolvedFont.replace(/\\/g, '/')}':` : '';
-              const textX = `(w*(${layer.x}/100))-text_w/2`;
-              const textY = `(h*(${layer.y}/100))-text_h/2`;
-              const currentOutput = `t${Math.random().toString(36).substr(2, 5)}`;
-              
-              filterParts.push(`[${lastOutputLabel}]drawtext=${fontFile}text='${safeText}':fontcolor=${fontColor}:fontsize=${fontSize}:x=${textX}:y=${textY}[${currentOutput}]`);
-              lastOutputLabel = currentOutput;
+              lastOutputLabel = buildTextFilter(layer, lastOutputLabel, filterParts);
               
             } else if (layer.type === 'spectrum') {
-              const specOutput = `spec_out_${specIdx}`;
-              
-              // If it's rainbow mode, we generate the wave in white first, then color it with geq
-              const isRainbow = layer.colorMode === 'rainbow_running' || layer.colorMode === 'rainbow_linear';
-              const hexColor = isRainbow ? '0xffffff' : (layer.color && layer.color.startsWith('#') ? '0x' + layer.color.substring(1) : layer.color || 'white');
-              
-              if (layer.shape === 'circular') {
-                const size = 600;
-                filterParts.push(`[aud_spec_${specIdx}]showwaves=size=${size}x${size}:mode=cline:colors=${hexColor}[wave_raw_${specIdx}]`);
-                filterParts.push(`[wave_raw_${specIdx}]format=rgba,colorkey=black:0.1:0.1[wave_trans_${specIdx}]`);
-                
-                const coordX = `mod((2*W/(2*PI))*(PI+atan2(0.5*H-Y,X-W/2)),W)`;
-                const coordY = `H-2*hypot(0.5*H-Y,X-W/2)`;
-                
-                if (isRainbow) {
-                  const phaseR = `0`;
-                  const phaseG = `(2*PI/3)`;
-                  const phaseB = `(4*PI/3)`;
-                  const angle = `(PI+atan2(0.5*H-Y,X-W/2))`; // 0 to 2PI
-                  
-                  // Add time variable T to make it "run" if running mode
-                  const timeOffset = layer.colorMode === 'rainbow_running' ? '-T*3' : '';
-                  
-                  const rExpr = `sin(${angle}+${phaseR}${timeOffset})*127+128`;
-                  const gExpr = `sin(${angle}+${phaseG}${timeOffset})*127+128`;
-                  const bExpr = `sin(${angle}+${phaseB}${timeOffset})*127+128`;
-                  
-                  filterParts.push(`[wave_trans_${specIdx}]geq=r='if(alpha(${coordX},${coordY}), ${rExpr}, 0)':g='if(alpha(${coordX},${coordY}), ${gExpr}, 0)':b='if(alpha(${coordX},${coordY}), ${bExpr}, 0)':a='alpha(${coordX}, ${coordY})'[wave_circ_${specIdx}]`);
-                } else {
-                  filterParts.push(`[wave_trans_${specIdx}]geq=r='r(${coordX}, ${coordY})':g='g(${coordX}, ${coordY})':b='b(${coordX}, ${coordY})':a='alpha(${coordX}, ${coordY})'[wave_circ_${specIdx}]`);
-                }
-                
-                let toOverlay = `wave_circ_${specIdx}`;
-                if (layer.centerImageIndex) {
-                  const imgSize = size / 2;
-                  filterParts.push(`[${layer.centerImageIndex}:v]scale=${imgSize}:${imgSize}[img_scaled_${specIdx}]`);
-                  filterParts.push(`[img_scaled_${specIdx}]format=rgba,geq=r='r(X,Y)':a='if(lt(hypot(X-W/2,Y-H/2),W/2),255,0)'[img_circ_${specIdx}]`);
-                  filterParts.push(`[wave_circ_${specIdx}][img_circ_${specIdx}]overlay=(W-w)/2:(H-h)/2[wave_with_img_${specIdx}]`);
-                  toOverlay = `wave_with_img_${specIdx}`;
-                }
-                
-                const scale = layer.scale || 1;
-                filterParts.push(`[${toOverlay}]scale=iw*${scale}:ih*${scale}[spec_scaled_${specIdx}]`);
-                const overlayX = `(main_w*(${layer.x}/100))-overlay_w/2`;
-                const overlayY = `(main_h*(${layer.y}/100))-overlay_h/2`;
-                filterParts.push(`[${lastOutputLabel}][spec_scaled_${specIdx}]overlay=${overlayX}:${overlayY}[${specOutput}]`);
-                
-              } else {
-                const width = 800;
-                const height = 200;
-                filterParts.push(`[aud_spec_${specIdx}]showwaves=size=${width}x${height}:mode=line:colors=${hexColor}[wave_raw_${specIdx}]`);
-                filterParts.push(`[wave_raw_${specIdx}]format=rgba,colorkey=black:0.1:0.1[wave_trans_${specIdx}]`);
-                
-                if (isRainbow) {
-                  const phaseR = `0`;
-                  const phaseG = `(2*PI/3)`;
-                  const phaseB = `(4*PI/3)`;
-                  
-                  const gradientBase = '(X/W)';
-                  const timeOffset = layer.colorMode === 'rainbow_running' ? '-T*3' : '';
-                  
-                  const rExpr = `sin(${gradientBase}*2*PI+${phaseR}${timeOffset})*127+128`;
-                  const gExpr = `sin(${gradientBase}*2*PI+${phaseG}${timeOffset})*127+128`;
-                  const bExpr = `sin(${gradientBase}*2*PI+${phaseB}${timeOffset})*127+128`;
-                  
-                  filterParts.push(`[wave_trans_${specIdx}]geq=r='if(alpha(X,Y), ${rExpr}, 0)':g='if(alpha(X,Y), ${gExpr}, 0)':b='if(alpha(X,Y), ${bExpr}, 0)':a='alpha(X,Y)'[wave_colored_${specIdx}]`);
-                  
-                  const scale = layer.scale || 1;
-                  filterParts.push(`[wave_colored_${specIdx}]scale=iw*${scale}:ih*${scale}[spec_scaled_${specIdx}]`);
-                } else {
-                  const scale = layer.scale || 1;
-                  filterParts.push(`[wave_trans_${specIdx}]scale=iw*${scale}:ih*${scale}[spec_scaled_${specIdx}]`);
-                }
-                
-                const overlayX = `(main_w*(${layer.x}/100))-overlay_w/2`;
-                const overlayY = `(main_h*(${layer.y}/100))-overlay_h/2`;
-                filterParts.push(`[${lastOutputLabel}][spec_scaled_${specIdx}]overlay=${overlayX}:${overlayY}[${specOutput}]`);
-              }
-              
-              lastOutputLabel = specOutput;
+              lastOutputLabel = buildSpectrumFilter(layer, specIdx, lastOutputLabel, filterParts);
               specIdx++;
             }
           });
@@ -515,12 +623,14 @@ ipcMain.handle('start-render', async (event, options) => {
 
           let outputOpts = [
             `-map [${lastOutputLabel}]`,
-            '-map [outa]',
+            `-map [${finalAudioLabel}]`,
             `-t ${totalDurationSec}`,
             `-c:v ${encoderToUse}`,
             '-pix_fmt yuv420p',
+            '-r 30', // Tetapkan framerate ke 30fps untuk akurasi progress bar dan konsistensi
             '-c:a aac',
-            '-shortest'
+            '-shortest',
+            '-threads 0'  // Gunakan semua CPU cores
           ];
 
           if (allowOverwrite) outputOpts.push('-y');
@@ -542,8 +652,13 @@ ipcMain.handle('start-render', async (event, options) => {
             .outputOptions(outputOpts)
             .on('progress', (progress) => {
               if (mainWindow) {
-                let percent = progress.percent || 0;
-                if ((!percent || percent <= 0) && progress.timemark) {
+                let percent = 0;
+                // Menggunakan perhitungan berbasis frame (lebih akurat & stabil karena tidak bergantung pada stream audio yang diproses duluan)
+                if (progress.frames) {
+                  const totalFrames = totalDurationSec * 30;
+                  percent = (progress.frames / totalFrames) * 100;
+                } else if (progress.timemark) {
+                  // Fallback jika frames tidak tersedia
                   const parts = progress.timemark.split(':');
                   if (parts.length >= 3) {
                     const currentSecs = parseFloat(parts[0]) * 3600 + parseFloat(parts[1]) * 60 + parseFloat(parts[2]);
@@ -555,7 +670,7 @@ ipcMain.handle('start-render', async (event, options) => {
                   currentVideo: i + 1,
                   totalVideos: videos.length,
                   percent: Math.min(Math.max(percent, 0), 100),
-                  timemark: progress.timemark
+                  timemark: progress.timemark || ''
                 });
               }
             })
@@ -567,8 +682,10 @@ ipcMain.handle('start-render', async (event, options) => {
             })
             .on('error', (err, stdout, stderr) => {
               activeFFmpegCommand = null;
-              fs.writeFileSync(path.join(app.getPath('userData'), 'ffmpeg-error.log'), stderr || err.message);
-              console.log("Full FFmpeg error saved to:", path.join(app.getPath('userData'), 'ffmpeg-error.log'));
+              const logPath = path.join(app.getPath('userData'), 'ffmpeg-error.log');
+              const logContent = stderr || err.message || '';
+              fs.writeFileSync(logPath, logContent);
+              console.log("Full FFmpeg error saved to:", logPath);
               if (err.message.includes('SIGKILL') || isRenderCanceled) {
                 // Hapus file yang setengah jadi agar tidak corrupt
                 if (fs.existsSync(outputPath)) {
@@ -576,7 +693,8 @@ ipcMain.handle('start-render', async (event, options) => {
                 }
                 reject(new Error('RENDER_CANCELED'));
               } else {
-                reject(new Error("FFmpeg error. Cek ffmpeg-error.log untuk detailnya. \n" + (err.message)));
+                const tailLog = logContent.split('\n').slice(-15).join('\n');
+                reject(new Error(`FFmpeg error (log: ${logPath})\n\nDetail:\n${tailLog}`));
               }
             });
         });
@@ -595,6 +713,10 @@ ipcMain.handle('start-render', async (event, options) => {
     }
   } finally {
     isRendering = false;
+    // Cleanup temp ping-pong files
+    tempFiles.forEach(f => {
+      try { if (fs.existsSync(f)) fs.unlinkSync(f); } catch (e) {}
+    });
   }
 
   return results;
@@ -628,7 +750,6 @@ ipcMain.handle('render-editor', async (event, options) => {
         activeFFmpegCommand = command;
         let filterParts = [];
         let sortedLayers = [...layers].sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
-        let videoInputIndex = 0;
         let nextInputIndex = 1;
         let lastOutputLabel = '0:v';
 
@@ -670,117 +791,21 @@ ipcMain.handle('render-editor', async (event, options) => {
         }
 
         let specIdx = 0;
-        // Build complex filter
+        // Build complex filter menggunakan reusable helper functions
         sortedLayers.forEach(layer => {
           if (['watermark', 'sticker', 'image'].includes(layer.type)) {
             const inputObj = imageInputs.find(img => img.layer.id === layer.id);
             if (!inputObj) return;
-            
-            const currentOutput = `v${inputObj.index}`;
-            const scale = layer.scale || 1;
-            filterParts.push(`[${inputObj.index}:v]scale=iw*${scale}:ih*${scale}[scaled_${inputObj.index}]`);
-            
-            const overlayX = `(main_w*(${layer.x}/100))-overlay_w/2`;
-            const overlayY = `(main_h*(${layer.y}/100))-overlay_h/2`;
-            let overlayFilter = `[${lastOutputLabel}][scaled_${inputObj.index}]overlay=${overlayX}:${overlayY}`;
-            if (path.extname(layer.src).toLowerCase() === '.gif') overlayFilter += `:shortest=1`;
-            overlayFilter += `[${currentOutput}]`;
-            
-            filterParts.push(overlayFilter);
-            lastOutputLabel = currentOutput;
+            lastOutputLabel = buildImageOverlayFilter(layer, inputObj, lastOutputLabel, filterParts);
             
           } else if (layer.type === 'text') {
-            const safeText = (layer.content || '').replace(/[':]/g, '\\$&');
-            const fontSize = parseInt(layer.fontSize) || 24;
-            const fontColor = layer.color || 'white';
-            
-            const textX = `(w*(${layer.x}/100))-text_w/2`;
-            const textY = `(h*(${layer.y}/100))-text_h/2`;
-            
-            const currentOutput = `t${Math.random().toString(36).substr(2, 5)}`;
-            filterParts.push(`[${lastOutputLabel}]drawtext=text='${safeText}':fontcolor=${fontColor}:fontsize=${fontSize}:x=${textX}:y=${textY}[${currentOutput}]`);
-            lastOutputLabel = currentOutput;
+            // Menggunakan helper yang sudah fix fontcolor dan fontfile
+            lastOutputLabel = buildTextFilter(layer, lastOutputLabel, filterParts);
             
           } else if (layer.type === 'spectrum') {
             if (!finalAudioLabel) return;
-            const specOutput = `spec_out_${specIdx}`;
-            
-            const isRainbow = layer.colorMode === 'rainbow_running' || layer.colorMode === 'rainbow_linear';
-            const hexColor = isRainbow ? '0xffffff' : (layer.color && layer.color.startsWith('#') ? '0x' + layer.color.substring(1) : layer.color || 'white');
-            
-            if (layer.shape === 'circular') {
-              const size = 600;
-              filterParts.push(`[aud_spec_${specIdx}]showwaves=size=${size}x${size}:mode=cline:colors=${hexColor}[wave_raw_${specIdx}]`);
-              filterParts.push(`[wave_raw_${specIdx}]format=rgba,colorkey=black:0.1:0.1[wave_trans_${specIdx}]`);
-              
-              const coordX = `mod((2*W/(2*PI))*(PI+atan2(0.5*H-Y,X-W/2)),W)`;
-              const coordY = `H-2*hypot(0.5*H-Y,X-W/2)`;
-              
-              if (isRainbow) {
-                const phaseR = `0`;
-                const phaseG = `(2*PI/3)`;
-                const phaseB = `(4*PI/3)`;
-                const angle = `(PI+atan2(0.5*H-Y,X-W/2))`; // 0 to 2PI
-                
-                // Add time variable T to make it "run" if running mode
-                const timeOffset = layer.colorMode === 'rainbow_running' ? '-T*3' : '';
-                
-                const rExpr = `sin(${angle}+${phaseR}${timeOffset})*127+128`;
-                const gExpr = `sin(${angle}+${phaseG}${timeOffset})*127+128`;
-                const bExpr = `sin(${angle}+${phaseB}${timeOffset})*127+128`;
-                
-                filterParts.push(`[wave_trans_${specIdx}]geq=r='if(alpha(${coordX},${coordY}), ${rExpr}, 0)':g='if(alpha(${coordX},${coordY}), ${gExpr}, 0)':b='if(alpha(${coordX},${coordY}), ${bExpr}, 0)':a='alpha(${coordX}, ${coordY})'[wave_circ_${specIdx}]`);
-              } else {
-                filterParts.push(`[wave_trans_${specIdx}]geq=r='r(${coordX}, ${coordY})':g='g(${coordX}, ${coordY})':b='b(${coordX}, ${coordY})':a='alpha(${coordX}, ${coordY})'[wave_circ_${specIdx}]`);
-              }
-              
-              let toOverlay = `wave_circ_${specIdx}`;
-              if (layer.centerImageIndex) {
-                const imgSize = size / 2;
-                filterParts.push(`[${layer.centerImageIndex}:v]scale=${imgSize}:${imgSize}[img_scaled_${specIdx}]`);
-                filterParts.push(`[img_scaled_${specIdx}]format=rgba,geq=r='r(X,Y)':a='if(lt(hypot(X-W/2,Y-H/2),W/2),255,0)'[img_circ_${specIdx}]`);
-                filterParts.push(`[wave_circ_${specIdx}][img_circ_${specIdx}]overlay=(W-w)/2:(H-h)/2[wave_with_img_${specIdx}]`);
-                toOverlay = `wave_with_img_${specIdx}`;
-              }
-              
-              const scale = layer.scale || 1;
-              filterParts.push(`[${toOverlay}]scale=iw*${scale}:ih*${scale}[spec_scaled_${specIdx}]`);
-              const overlayX = `(main_w*(${layer.x}/100))-overlay_w/2`;
-              const overlayY = `(main_h*(${layer.y}/100))-overlay_h/2`;
-              filterParts.push(`[${lastOutputLabel}][spec_scaled_${specIdx}]overlay=${overlayX}:${overlayY}[${specOutput}]`);
-              
-            } else {
-              const width = 800;
-              const height = 200;
-              filterParts.push(`[aud_spec_${specIdx}]showwaves=size=${width}x${height}:mode=line:colors=${hexColor}[wave_raw_${specIdx}]`);
-              filterParts.push(`[wave_raw_${specIdx}]format=rgba,colorkey=black:0.1:0.1[wave_trans_${specIdx}]`);
-              
-              if (isRainbow) {
-                const phaseR = `0`;
-                const phaseG = `(2*PI/3)`;
-                const phaseB = `(4*PI/3)`;
-                
-                const gradientBase = '(X/W)';
-                const timeOffset = layer.colorMode === 'rainbow_running' ? '-T*3' : '';
-                
-                const rExpr = `sin(${gradientBase}*2*PI+${phaseR}${timeOffset})*127+128`;
-                const gExpr = `sin(${gradientBase}*2*PI+${phaseG}${timeOffset})*127+128`;
-                const bExpr = `sin(${gradientBase}*2*PI+${phaseB}${timeOffset})*127+128`;
-                
-                filterParts.push(`[wave_trans_${specIdx}]geq=r='if(alpha(X,Y), ${rExpr}, 0)':g='if(alpha(X,Y), ${gExpr}, 0)':b='if(alpha(X,Y), ${bExpr}, 0)':a='alpha(X,Y)'[wave_colored_${specIdx}]`);
-                
-                const scale = layer.scale || 1;
-                filterParts.push(`[wave_colored_${specIdx}]scale=iw*${scale}:ih*${scale}[spec_scaled_${specIdx}]`);
-              } else {
-                const scale = layer.scale || 1;
-                filterParts.push(`[wave_trans_${specIdx}]scale=iw*${scale}:ih*${scale}[spec_scaled_${specIdx}]`);
-              }
-              
-              const overlayX = `(main_w*(${layer.x}/100))-overlay_w/2`;
-              const overlayY = `(main_h*(${layer.y}/100))-overlay_h/2`;
-              filterParts.push(`[${lastOutputLabel}][spec_scaled_${specIdx}]overlay=${overlayX}:${overlayY}[${specOutput}]`);
-            }
-            lastOutputLabel = specOutput;
+            // Menggunakan helper yang sudah tanpa geq (lebih cepat)
+            lastOutputLabel = buildSpectrumFilter(layer, specIdx, lastOutputLabel, filterParts);
             specIdx++;
           }
         });
@@ -789,6 +814,7 @@ ipcMain.handle('render-editor', async (event, options) => {
           `-map [${lastOutputLabel}]`,
           `-c:v ${encoderToUse}`,
           '-pix_fmt yuv420p',
+          '-threads 0',
           '-y'
         ];
         
@@ -841,11 +867,16 @@ ipcMain.handle('render-editor', async (event, options) => {
           })
           .on('error', (err, stdout, stderr) => {
             activeFFmpegCommand = null;
+            const logPath = path.join(app.getPath('userData'), 'ffmpeg-error.log');
+            const logContent = stderr || err.message || '';
+            fs.writeFileSync(logPath, logContent);
+            console.log("Full FFmpeg error saved to:", logPath);
             if (err.message.includes('SIGKILL') || isRenderCanceled) {
               if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
               reject(new Error('RENDER_CANCELED'));
             } else {
-              reject(new Error(stderr || err.message));
+              const tailLog = logContent.split('\n').slice(-15).join('\n');
+              reject(new Error(`FFmpeg error (log: ${logPath})\n\nDetail:\n${tailLog}`));
             }
           });
       });

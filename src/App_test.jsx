@@ -193,13 +193,13 @@ export default function App() {
       <div className="flex gap-4 mb-6">
         <button 
           onClick={() => setView('mixer')} 
-          className={`border-4 border-black px-6 py-2 font-black text-lg transition-all ${view === 'mixer' ? 'bg-[#FFE500] shadow-[0px_0px_0px_0px_rgba(0,0,0,1)] translate-x-1 translate-y-1' : 'bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:bg-zinc-100'}`}
+          className={`border-4 border-black px-6 py-2 font-black text-lg transition-all ${view === 'mixer' ? 'bg-[#FFE500] shadow-[0px_0px_0px_0px_rgba(0,0,0,1)] translate-x-1 translate-y-1' : 'bg-green-400 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:bg-zinc-100'}`}
         >
           BATCH MIXER
         </button>
         <button 
           onClick={() => setView('editor')} 
-          className={`border-4 border-black px-6 py-2 font-black text-lg transition-all ${view === 'editor' ? 'bg-[#00F0FF] shadow-[0px_0px_0px_0px_rgba(0,0,0,1)] translate-x-1 translate-y-1' : 'bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:bg-zinc-100'}`}
+          className={`border-4 border-black px-6 py-2 font-black text-lg transition-all ${view === 'editor' ? 'bg-[#00F0FF] shadow-[0px_0px_0px_0px_rgba(0,0,0,1)] translate-x-1 translate-y-1' : 'bg-orange-400 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:bg-zinc-100'}`}
         >
           EDITOR
         </button>
@@ -214,11 +214,11 @@ export default function App() {
               <RefreshCw className="animate-spin w-8 h-8" />
               SEDANG MERENDER...
             </h2>
-            <p className="font-bold text-sm mb-6 border-l-4 border-black pl-3 py-1 bg-white">
+            <p className="font-bold text-sm mb-6 border-l-4 border-black pl-3 py-1 bg-purple-400">
               Proses *mixing* FFmpeg sedang berjalan. Proses ini mungkin memakan waktu agak lama. Mohon jangan menutup jendela ini.
             </p>
             
-            <div className="border-4 border-black bg-white h-14 w-full relative overflow-hidden shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+            <div className="border-4 border-black bg-yellow-400 h-14 w-full relative overflow-hidden shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
               {progressData && (
                 <div 
                   className="absolute top-0 left-0 h-full bg-[#00FF55] transition-all duration-300 ease-out border-r-4 border-black" 
@@ -248,7 +248,7 @@ export default function App() {
           <div className="bg-[#00FF55] border-4 border-black p-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] max-w-xl w-full transform animate-in zoom-in-95 duration-200 relative">
             <button 
               onClick={() => setIsSuccess(false)}
-              className="absolute top-4 right-4 bg-white border-2 border-black w-8 h-8 flex items-center justify-center font-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5"
+              className="absolute top-4 right-4 bg-blue-400 border-2 border-black w-8 h-8 flex items-center justify-center font-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5"
             >
               X
             </button>
@@ -256,7 +256,7 @@ export default function App() {
               <CheckCircle2 className="w-10 h-10" />
               BERHASIL!
             </h2>
-            <p className="font-bold text-base mb-6 border-l-4 border-black pl-3 py-2 bg-white">
+            <p className="font-bold text-base mb-6 border-l-4 border-black pl-3 py-2 bg-green-400">
               Semua video Anda telah selesai dirender dan dicampur (mixing) dengan aman ke dalam folder!
             </p>
             
@@ -275,7 +275,7 @@ export default function App() {
         <div>
           <h1 className="text-2xl font-black tracking-wider flex items-center gap-2">
             <img src="./favicon-32x32.png" className="w-8 h-8" alt="Vidmix Logo" /> VIDMIX <span className="bg-black text-white px-2 py-0.5 text-sm">v2.0</span>
-            <div className="ml-3 bg-white border-2 border-black px-2 py-1 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] text-[10px] font-black flex items-center gap-3">
+            <div className="ml-3 bg-orange-400 border-2 border-black px-2 py-1 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] text-[10px] font-black flex items-center gap-3">
               <span className="text-zinc-500">Creator:</span>
               <a href="https://instagram.com/ikifer" target="_blank" rel="noreferrer" className="hover:text-pink-600 transition-colors">
                 Ig: @ikifer
@@ -288,7 +288,7 @@ export default function App() {
           </h1>
           <p className="text-xs font-bold mt-1">High-Speed FFmpeg Automation & Random Audio Mixer Engine</p>
         </div>
-        <div className="bg-white border-2 border-black px-3 py-1 font-bold text-xs shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+        <div className="bg-purple-400 border-2 border-black px-3 py-1 font-bold text-xs shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
           Windows Native 🚀
         </div>
       </div>
@@ -299,7 +299,7 @@ export default function App() {
         <div className="space-y-6">
           
           {/* Panel Folder Sources */}
-          <div className="border-4 border-black bg-white p-5 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
+          <div className="border-4 border-black bg-yellow-400 p-5 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
             <h2 className="text-lg font-black mb-4 flex items-center gap-2 border-b-4 border-black pb-2">
               <FolderOpen className="w-5 h-5"/> Direktori Sumber Berkelanjutan
             </h2>
@@ -341,7 +341,7 @@ export default function App() {
           </div>
 
           {/* Panel Konfigurasi Nama & Preset Loop */}
-          <div className="border-4 border-black bg-white p-5 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
+          <div className="border-4 border-black bg-blue-400 p-5 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
             <h2 className="text-lg font-black mb-4 flex items-center gap-2 border-b-4 border-black pb-2">
               <Settings className="w-5 h-5"/> Pengaturan Render
             </h2>
@@ -359,7 +359,7 @@ export default function App() {
                   <button 
                     onClick={() => setAllowOverwrite(!allowOverwrite)}
                     title="Timpa file jika sudah ada"
-                    className={`border-2 border-black px-3 text-xs font-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-colors whitespace-nowrap ${allowOverwrite ? 'bg-red-500 text-white' : 'bg-white'}`}
+                    className={`border-2 border-black px-3 text-xs font-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-colors whitespace-nowrap ${allowOverwrite ? 'bg-red-500 text-white' : 'bg-green-400'}`}
                   >
                     {allowOverwrite ? 'TIMPA (ON)' : 'TIMPA (OFF)'}
                   </button>
@@ -374,7 +374,7 @@ export default function App() {
                     <button
                       key={preset}
                       onClick={() => setLoopPreset(preset)}
-                      className={`border-2 border-black py-2 text-xs font-black uppercase transition-all ${loopPreset === preset ? 'bg-black text-white shadow-none translate-x-0.5 translate-y-0.5' : 'bg-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'}`}
+                      className={`border-2 border-black py-2 text-xs font-black uppercase transition-all ${loopPreset === preset ? 'bg-black text-white shadow-none translate-x-0.5 translate-y-0.5' : 'bg-orange-400 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'}`}
                     >
                       {preset}
                     </button>
@@ -389,7 +389,7 @@ export default function App() {
                     type="number" 
                     value={customMinutes} 
                     onChange={(e) => setCustomMinutes(Number(e.target.value))} 
-                    className="w-full border-2 border-black px-3 py-2 text-sm font-bold bg-white" 
+                    className="w-full border-2 border-black px-3 py-2 text-sm font-bold bg-purple-400" 
                   />
                 </div>
               )}
@@ -405,7 +405,7 @@ export default function App() {
                     <button
                       key={lvl.id}
                       onClick={() => setCompressionLevel(lvl.id)}
-                      className={`border-2 border-black py-2 text-[10px] font-black uppercase transition-all ${compressionLevel === lvl.id ? 'bg-black text-white shadow-none translate-x-0.5 translate-y-0.5' : 'bg-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:bg-zinc-100'}`}
+                      className={`border-2 border-black py-2 text-[10px] font-black uppercase transition-all ${compressionLevel === lvl.id ? 'bg-black text-white shadow-none translate-x-0.5 translate-y-0.5' : 'bg-yellow-400 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:bg-zinc-100'}`}
                     >
                       {lvl.label}
                     </button>
@@ -451,13 +451,13 @@ export default function App() {
             <div className="flex gap-2 mb-4">
               <button 
                 onClick={() => setAudioOrderType('random')}
-                className={`flex-1 border-2 border-black py-2 text-xs font-black transition-all ${audioOrderType === 'random' ? 'bg-black text-white shadow-none translate-x-0.5 translate-y-0.5' : 'bg-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'}`}
+                className={`flex-1 border-2 border-black py-2 text-xs font-black transition-all ${audioOrderType === 'random' ? 'bg-black text-white shadow-none translate-x-0.5 translate-y-0.5' : 'bg-blue-400 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'}`}
               >
                 ACAK (SHUFFLE)
               </button>
               <button 
                 onClick={() => setAudioOrderType('custom')}
-                className={`flex-1 border-2 border-black py-2 text-xs font-black transition-all ${audioOrderType === 'custom' ? 'bg-black text-white shadow-none translate-x-0.5 translate-y-0.5' : 'bg-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'}`}
+                className={`flex-1 border-2 border-black py-2 text-xs font-black transition-all ${audioOrderType === 'custom' ? 'bg-black text-white shadow-none translate-x-0.5 translate-y-0.5' : 'bg-green-400 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'}`}
               >
                 PILIH URUTAN
               </button>
@@ -467,10 +467,10 @@ export default function App() {
               <div className="flex-1">
                 <p className="text-xs font-bold mb-4">Setiap video akan memproses urutan musik yang berbeda secara otomatis (Algoritma Fisher-Yates).</p>
                 <div className="space-y-2 font-mono text-xs opacity-75">
-                  <div className="bg-white border-2 border-black p-2 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                  <div className="bg-orange-400 border-2 border-black p-2 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
                     <span className="font-black text-purple-700">{customName} 1.mp4</span> → [ Urutan Acak ]
                   </div>
-                  <div className="bg-white border-2 border-black p-2 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                  <div className="bg-purple-400 border-2 border-black p-2 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
                     <span className="font-black text-purple-700">{customName} 2.mp4</span> → [ Urutan Acak ]
                   </div>
                 </div>
@@ -479,7 +479,7 @@ export default function App() {
               <div className="flex-1 flex flex-col min-h-0">
                 <p className="text-xs font-bold mb-2">Urutan Musik Kustom (Berlaku sama untuk semua video):</p>
                 {audios.length === 0 ? (
-                  <div className="text-xs italic text-zinc-600 bg-white/50 p-3 border-2 border-black border-dashed">Belum ada musik yang dipilih.</div>
+                  <div className="text-xs italic text-zinc-600 bg-yellow-400/50 p-3 border-2 border-black border-dashed">Belum ada musik yang dipilih.</div>
                 ) : (
                   <div className="overflow-y-auto pr-2 space-y-3 flex-1 pb-2 max-h-[350px]">
                     {audios.map((audioPath, idx) => (
@@ -491,7 +491,7 @@ export default function App() {
                         onDragEnd={handleDragEnd}
                         onDrop={handleDragEnd}
                         onDragOver={(e) => e.preventDefault()}
-                        className={`flex items-center gap-3 bg-white border-2 border-black p-3 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] cursor-move transition-transform hover:-translate-y-0.5 ${draggedItemIndex === idx ? 'ring-2 ring-[#FF90E8]' : ''}`}
+                        className={`flex items-center gap-3 bg-blue-400 border-2 border-black p-3 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] cursor-move transition-transform hover:-translate-y-0.5 ${draggedItemIndex === idx ? 'ring-2 ring-[#FF90E8]' : ''}`}
                       >
                         <div className="font-black w-7 h-7 flex items-center justify-center text-sm bg-[#FFE500] border-2 border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]">{idx + 1}</div>
                         <div className="truncate flex-1 font-black text-sm" title={audioPath}>

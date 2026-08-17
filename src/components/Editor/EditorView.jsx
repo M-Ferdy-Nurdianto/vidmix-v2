@@ -124,14 +124,14 @@ export default function EditorView() {
               <RefreshCw className="animate-spin w-8 h-8" />
               SEDANG MERENDER EDITOR...
             </h2>
-            <p className="font-bold text-sm mb-6 border-l-4 border-black pl-3 py-1 bg-white">
+            <p className="font-bold text-sm mb-6 border-l-4 border-black pl-3 py-1 bg-green-400">
               FFmpeg sedang memproses susunan layer Anda menjadi video utuh.
             </p>
             
-            <div className="border-4 border-black bg-white h-14 w-full relative overflow-hidden shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+            <div className="border-4 border-black bg-orange-400 h-14 w-full relative overflow-hidden shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
               {renderProgress && (
                 <div 
-                  className="absolute top-0 left-0 h-full bg-[#FFE500] transition-all duration-300 ease-out border-r-4 border-black" 
+                  className="absolute top-0 left-0 h-full bg-[#FFE500] border-r-4 border-black" 
                   style={{ width: `${Math.min(Math.max(renderProgress.percent, 0), 100)}%` }} 
                 />
               )}
@@ -166,7 +166,7 @@ export default function EditorView() {
         </button>
       </div>
 
-      <div className="border-4 border-black bg-white p-5 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
+      <div className="border-4 border-black bg-purple-400 p-5 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
         <h2 className="text-lg font-black mb-4 flex items-center justify-between border-b-4 border-black pb-2">
           <span className="flex items-center gap-2"><Film className="w-5 h-5"/> Panel Media Dasar</span>
           
