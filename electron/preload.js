@@ -15,5 +15,6 @@ contextBridge.exposeInMainWorld('api', {
   removeEditorRenderProgress: () => ipcRenderer.removeAllListeners('editor-render-progress'),
   getGifs: () => ipcRenderer.invoke('get-gifs'),
   uploadGif: () => ipcRenderer.invoke('upload-gif'),
-  openGifsFolder: () => ipcRenderer.invoke('open-gifs-folder')
+  openGifsFolder: () => ipcRenderer.invoke('open-gifs-folder'),
+  exportSpectrumGif: (options) => ipcRenderer.invoke('export-spectrum-gif', options)
 });

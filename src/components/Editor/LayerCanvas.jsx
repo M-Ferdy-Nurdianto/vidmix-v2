@@ -339,14 +339,14 @@ export default function LayerCanvas({ mediaPath, mediaType, layers, setLayers, s
  <img 
  src={`file://${layer.centerImage}`} 
  alt="Center" 
- className="w-[76px] h-[76px] object-cover rounded-full border-2 border-white/30"
+ className="w-19 h-19 object-cover rounded-full border-2 border-white/30"
  />
  </div>
  )}
  </div>
  ) : (
  <div 
- className="flex items-end gap-[2px] overflow-hidden relative"
+ className="flex items-end gap-0.5 overflow-hidden relative"
  style={{ height: '80px', width: '220px', justifyContent: 'center' }}
  >
  {/* More bars for a better representation of the actual spectrum */}

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { FolderOpen, Play, RefreshCw, Film, Music, CheckCircle2, AlertCircle, Settings, ChevronDown, GripVertical, Plus, Trash2, Type, Image as ImageIcon, Activity } from 'lucide-react';
 import LayerCanvas from './components/Editor/LayerCanvas';
 import LayerControlPanel from './components/Editor/LayerControlPanel';
+import SpectrumGenerator from './components/SpectrumGenerator/SpectrumGenerator';
 import toast, { Toaster, ToastBar } from 'react-hot-toast';
 
 export default function App() {
@@ -19,9 +20,22 @@ export default function App() {
  
  // State non-persistent
  const [isProcessing, setIsProcessing] = useState(false);
- const [progressData, setProgressData] = useState(null);
- const [renderStartTime, setRenderStartTime] = useState(null);
- const [view, setView] = useState('mixer');
+  const [progressData, setProgressData] = useState(null);
+  const [elapsedMs, setElapsedMs] = useState(0);
+  const [renderStartTime, setRenderStartTime] = useState(null);
+  const [view, setView] = useState('mixer');
+
+  useEffect(() => {
+    let interval;
+    if (isProcessing && renderStartTime) {
+      interval = setInterval(() => {
+        setElapsedMs(Date.now() - renderStartTime);
+      }, 1000);
+    } else {
+      setElapsedMs(0);
+    }
+    return () => clearInterval(interval);
+  }, [isProcessing, renderStartTime]);
 
  // Auto-save state ke localStorage setiap ada perubahan
  useEffect(() => {
@@ -88,9 +102,9 @@ export default function App() {
  if (config.lastOutputDir) setOutputDir(config.lastOutputDir);
  });
 
- window.api.onRenderProgress((data) => {
- setProgressData(data);
- });
+  window.api.onRenderProgress((data) => {
+    setProgressData(data);
+  });
 
  return () => {
  window.api.removeRenderProgress();
@@ -189,10 +203,10 @@ export default function App() {
  return;
  }
  try {
- setIsProcessing(true);
- setIsSuccess(false);
- setProgressData(null);
- setRenderStartTime(Date.now());
+      setIsProcessing(true);
+      setIsSuccess(false);
+      setProgressData(null);
+      setRenderStartTime(Date.now());
 
  let durationVal = 15;
  if (loopPreset === '30m') durationVal = 30;
@@ -211,8 +225,32 @@ export default function App() {
  compressionLevel
  });
 
- setIsSuccess(true);
- setLastSuccessFolder(outputDir);
+      const playSuccessSound = () => {
+        try {
+          const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          const oscillator = audioCtx.createOscillator();
+          const gainNode = audioCtx.createGain();
+          
+          oscillator.type = 'sine';
+          oscillator.frequency.setValueAtTime(523.25, audioCtx.currentTime); // C5
+          oscillator.frequency.exponentialRampToValueAtTime(1046.50, audioCtx.currentTime + 0.1); // C6
+          
+          gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+          gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+          
+          oscillator.connect(gainNode);
+          gainNode.connect(audioCtx.destination);
+          
+          oscillator.start();
+          oscillator.stop(audioCtx.currentTime + 0.5);
+        } catch (e) {
+          console.error('Failed to play sound', e);
+        }
+      };
+
+      playSuccessSound();
+      setIsSuccess(true);
+      setLastSuccessFolder(outputDir);
  } catch (e) {
  if (e.message.includes('RENDER_CANCELED')) {
  toast.error('Proses render dibatalkan oleh pengguna.');
@@ -226,23 +264,6 @@ export default function App() {
  }
  };
 
- const calculateETA = () => {
- if (!progressData || !renderStartTime || progressData.percent <= 0) return 'Menghitung...';
- 
- // Hitung persentase keseluruhan dari semua video
- const overallPercent = ((progressData.currentVideo - 1) * 100 + progressData.percent) / progressData.totalVideos;
- if (overallPercent <= 0) return 'Menghitung...';
-
- const elapsedMs = Date.now() - renderStartTime;
- const totalEstMs = (elapsedMs / overallPercent) * 100;
- const remainingMs = totalEstMs - elapsedMs;
-
- if (remainingMs <= 0) return 'Hampir selesai...';
-
- const remainingMins = Math.floor(remainingMs / 60000);
- const remainingSecs = Math.floor((remainingMs % 60000) / 1000);
- return `Estimasi Sisa Waktu: ${remainingMins}m ${remainingSecs}s`;
- };
 
  return (
  <div className="min-h-screen bg-[#F4F4F0] text-zinc-900 font-mono p-6 select-none relative pb-16 transition-colors duration-300">
@@ -258,17 +279,24 @@ export default function App() {
  }}
  >
  {(t) => {
- if (t.type === 'error') {
- return (
- <div 
- style={{ opacity: t.visible ? 1 : 0 }}
- className="bg-red-500 border-4 border-black text-white p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex flex-col gap-2 font-bold pointer-events-auto max-w-md max-h-[80vh] overflow-hidden transition-all duration-300"
- >
- <div className="flex justify-between items-start gap-4">
- <div className="flex items-center gap-2">
- <span className="text-xl">⚠️</span>
- <span className="uppercase font-black tracking-wider">Terjadi Kesalahan</span>
- </div>
+            if (t.type === 'error') {
+              const msgStr = typeof t.message === 'string' ? t.message : JSON.stringify(t.message);
+              const isFileExists = msgStr.toLowerCase().includes('sudah ada') || msgStr.toLowerCase().includes('overwrite');
+              
+              const bgColor = isFileExists ? 'bg-orange-500' : 'bg-red-500';
+              const titleText = isFileExists ? 'File Sudah Ada' : 'Terjadi Kesalahan';
+              const titleIcon = isFileExists ? '📁' : '⚠️';
+
+              return (
+                <div 
+                  style={{ opacity: t.visible ? 1 : 0 }}
+                  className={`${bgColor} border-4 border-black text-white p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex flex-col gap-2 font-bold pointer-events-auto max-w-md max-h-[80vh] overflow-hidden transition-all duration-300`}
+                >
+                  <div className="flex justify-between items-start gap-4">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">{titleIcon}</span>
+                      <span className="uppercase font-black tracking-wider">{titleText}</span>
+                    </div>
  <button 
  onClick={(e) => {
  e.stopPropagation();
@@ -287,12 +315,45 @@ export default function App() {
  </div>
  );
  }
- return <ToastBar toast={t} />;
- }}
+            // Style for success, loading, or normal toasts
+            let bgColor = 'bg-white';
+            if (t.type === 'success') bgColor = 'bg-[#00FF55]';
+            else if (t.type === 'loading') bgColor = 'bg-[#FFE500]';
+
+            return (
+              <div
+                style={{ opacity: t.visible ? 1 : 0, transform: t.visible ? 'translateY(0)' : 'translateY(-20px)' }}
+                className={`${bgColor} border-4 border-black text-black px-4 py-3 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex items-center gap-3 font-bold pointer-events-auto transition-all duration-300 cursor-pointer hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]`}
+                onClick={() => toast.dismiss(t.id)}
+              >
+                <span className="text-xl shrink-0">{t.icon}</span>
+                <span className="tracking-wide wrap-break-word">{t.message}</span>
+              </div>
+            );
+          }}
  </Toaster>
  
- {/* Main Container */}
- <div style={{ display: editingVideoId ? 'none' : 'block' }}>
+  {/* Global Navigation */}
+  <div className="flex gap-4 mb-6 border-b-4 border-black pb-4">
+    <button 
+      onClick={() => setView('mixer')}
+      className={`px-6 py-2 font-black border-4 border-black text-xl transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-1 active:translate-y-1 active:shadow-none ${view === 'mixer' ? 'bg-[#00FF55]' : 'bg-white'}`}
+    >
+      🎬 VIDEO MIXER
+    </button>
+    <button 
+      onClick={() => setView('spectrum')}
+      className={`px-6 py-2 font-black border-4 border-black text-xl transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-1 active:translate-y-1 active:shadow-none ${view === 'spectrum' ? 'bg-[#00F0FF]' : 'bg-white'}`}
+    >
+      🎵 SPECTRUM MAKER
+    </button>
+  </div>
+
+  {view === 'spectrum' ? (
+    <SpectrumGenerator />
+  ) : (
+    <>
+    <div style={{ display: editingVideoId ? 'none' : 'block' }}>
  {/* Full-screen Render Overlay */}
  {isProcessing && (
  <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-6">
@@ -306,25 +367,24 @@ export default function App() {
  </p>
  
  <div className="border-4 border-black bg-yellow-400 h-14 w-full relative overflow-hidden shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
- {progressData && (
- <div 
- className="absolute top-0 left-0 h-full bg-[#00FF55] border-r-4 border-black" 
- style={{ width: `${Math.min(Math.max(progressData.percent, 0), 100)}%` }} 
- />
- )}
- <div className="absolute inset-0 flex items-center justify-center font-black text-xl z-10 mix-blend-difference text-white">
- {progressData ? `${Math.round(progressData.percent)}%` : 'MENYIAPKAN RENDER...'}
- </div>
- </div>
- 
- <div className="mt-6 flex justify-between items-center font-black bg-black text-white px-4 py-2">
- <span>STATUS: PROCESSING</span>
- {progressData ? (
- <span>{calculateETA()} | VIDEO {progressData.currentVideo} / {progressData.totalVideos}</span>
- ) : (
- <span>MENYIAPKAN FFmpeg...</span>
- )}
- </div>
+  {progressData && (
+  <div 
+  className="absolute top-0 left-0 h-full w-full bg-[#00FF55] border-r-4 border-black animate-indeterminate" 
+  />
+  )}
+  <div className="absolute inset-0 flex items-center justify-center font-black text-xl z-10 mix-blend-difference text-white">
+  {progressData ? `SEDANG MEMPROSES... ${Math.round(progressData.percent)}%` : 'MENYIAPKAN RENDER...'}
+  </div>
+  </div>
+  
+  <div className="mt-6 flex justify-between items-center font-black bg-black text-white px-4 py-2">
+  <span>STATUS: PROCESSING</span>
+  {progressData ? (
+  <span>Sudah berjalan: {Math.floor(elapsedMs / 60000)}m {Math.floor((elapsedMs % 60000) / 1000)}s | VIDEO {progressData.currentVideo} / {progressData.totalVideos}</span>
+  ) : (
+  <span>MENYIAPKAN FFmpeg...</span>
+  )}
+  </div>
 
  <button 
  onClick={() => window.api.cancelRender()}
@@ -1076,6 +1136,8 @@ export default function App() {
 
  </div>
  </div>
+ )}
+ </>
  )}
  </div>
  );

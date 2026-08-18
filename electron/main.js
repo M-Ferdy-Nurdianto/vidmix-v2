@@ -505,28 +505,15 @@ ipcMain.handle('start-render', async (event, options) => {
 
       if (isRenderCanceled) break;
 
-      // ===== PING-PONG LOOPING: Buat video forward+reverse untuk seamless loop =====
       let loopVideoPath = videoPath;
-      try {
-        if (mainWindow) {
-          mainWindow.webContents.send('render-progress', {
-            currentVideo: i + 1,
-            totalVideos: videos.length,
-            percent: 0,
-            timemark: '00:00:00'
-          });
-        }
-        console.log(`[Video ${i+1}] Membuat ping-pong loop (forward + reverse)...`);
-        const pingPongFile = await createPingPongVideo(videoPath);
-        tempFiles.push(pingPongFile);
-        loopVideoPath = pingPongFile;
-        console.log(`[Video ${i+1}] Ping-pong loop siap: ${pingPongFile}`);
-      } catch (ppErr) {
-        console.warn(`[Video ${i+1}] Gagal buat ping-pong, fallback ke loop biasa:`, ppErr.message);
-        // Fallback ke video asli jika ping-pong gagal
-        loopVideoPath = videoPath;
+      if (mainWindow) {
+        mainWindow.webContents.send('render-progress', {
+          currentVideo: i + 1,
+          totalVideos: videos.length,
+          percent: 0,
+          timemark: '00:00:00'
+        });
       }
-
       let currentEncoder = detectBestEncoder();
 
       const runFFmpeg = (encoderToUse) => {
@@ -900,4 +887,130 @@ ipcMain.handle('render-editor', async (event, options) => {
   } finally {
     isRendering = false;
   }
+});
+
+ipcMain.handle('export-spectrum-gif', async (event, options) => {
+  const { audioPath, outputPath, resolution = '1280x720', backgroundColor = 'black', shape = 'linear', colorMode = 'solid', solidColor = '#00FF55', particles = false, alignment = 'left', centerImagePath = '', advanced = {} } = options;
+  const { heightScale = 1.0 } = advanced;
+  if (!audioPath || !outputPath) throw new Error('Audio and Output path required');
+
+  return new Promise((resolve, reject) => {
+    const width = parseInt(resolution.split('x')[0]) || 1280;
+    const height = parseInt(resolution.split('x')[1]) || 720;
+    const inputs = [audioPath];
+    let filterParts = [];
+    
+    filterParts.push(`color=c=${backgroundColor}:s=${resolution}[bg_raw]`);
+    let bgLayer = 'bg_raw';
+    
+    // Apply height scale to audio via volume filter to simulate taller bars in FFmpeg
+    const audioInput = heightScale !== 1.0 ? '[audio_scaled]' : '0:a';
+    if (heightScale !== 1.0) {
+      filterParts.push(`[0:a]volume=${heightScale}[audio_scaled]`);
+    }
+    
+    if (particles) {
+      filterParts.push(`${audioInput}showcqt=s=${resolution}:mode=bar:bar_h=20:cmapped=1:sono_g=2:bar_g=2[aura]`);
+      filterParts.push(`[aura]boxblur=20:5[aura_blur]`);
+      filterParts.push(`[bg_raw][aura_blur]blend=all_mode=screen[bg_particles]`);
+      bgLayer = 'bg_particles';
+    }
+    
+    let colors = solidColor.replace('#', '0x'); // default to solid
+    if (colorMode === 'rgb_running' || colorMode === 'rgb_beat' || colorMode === 'gradient_cyan_purple') {
+      colors = '0xFF0000|0xFF7F00|0xFFFF00|0x00FF00|0x0000FF|0x4B0082|0x9400D3';
+    } else if (colorMode === 'fire') {
+      colors = '0xFF0000|0xFF4500|0xFF8C00|0xFFD700|0xFFFF00';
+    }
+
+    let specLayer = '';
+    
+    if (shape === 'waveform') {
+      filterParts.push(`${audioInput}showwaves=size=${resolution}:mode=p2p:colors=${colors}:rate=25[spec_raw]`);
+      specLayer = 'spec_raw';
+    } else if (shape === 'dots') {
+      filterParts.push(`${audioInput}showfreqs=size=${resolution}:mode=dot:fscale=log:colors=${colors}:ascale=cbrt[spec_raw]`);
+      specLayer = 'spec_raw';
+    } else if (shape === 'symmetric') {
+      const halfHeight = Math.floor(height / 2);
+      filterParts.push(`${audioInput}showfreqs=size=${width}x${halfHeight}:mode=bar:fscale=log:colors=${colors}:ascale=cbrt[spec_half]`);
+      filterParts.push(`[spec_half]split[sh1][sh2]`);
+      filterParts.push(`[sh2]vflip[sh2_flip]`);
+      filterParts.push(`[sh1][sh2_flip]vstack[spec_raw]`);
+      specLayer = 'spec_raw';
+    } else if (shape === 'circular') {
+      const size = Math.min(width, height);
+      filterParts.push(`${audioInput}showfreqs=size=${size}x${size}:mode=bar:fscale=log:colors=${colors}[wave_raw]`);
+      filterParts.push(`[wave_raw]format=rgba,colorkey=black:0.01:0.3[wave_trans]`);
+      
+      const coordX = `mod((2*W/(2*PI))*(PI+atan2(0.5*H-Y,X-W/2)),W)`;
+      const rExpr = `hypot(0.5*H-Y,X-W/2)`;
+      const rInnerExpr = '(H/4)'; 
+      const coordY = `H*(H/2-${rExpr})/(H/2-${rInnerExpr})`;
+      
+      filterParts.push(`[wave_trans]geq=r='r(${coordX}, ${coordY})':g='g(${coordX}, ${coordY})':b='b(${coordX}, ${coordY})':a='if(lt(${rExpr},${rInnerExpr}), 0, alpha(${coordX}, ${coordY}))'[wave_circ]`);
+      
+      let waveFinal = 'wave_circ';
+      
+      if (centerImagePath) {
+        inputs.push(centerImagePath);
+        const centerImgIndex = inputs.length - 1;
+        const imgSize = Math.floor(size / 2);
+        
+        filterParts.push(`[${centerImgIndex}:v]scale=${imgSize}:${imgSize}:force_original_aspect_ratio=increase,crop=${imgSize}:${imgSize},format=rgba[img_scaled]`);
+        filterParts.push(`[img_scaled]geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='if(gt(hypot(W/2-X, H/2-Y), W/2), 0, 255)'[img_circ]`);
+        filterParts.push(`color=c=black@0:s=${size}x${size},format=rgba[wave_canvas]`);
+        filterParts.push(`[wave_canvas][img_circ]overlay=(W-w)/2:(H-h)/2[wave_with_img]`);
+        filterParts.push(`[wave_with_img][wave_circ]overlay=0:0[wave_combined]`);
+        waveFinal = 'wave_combined';
+      }
+      
+      filterParts.push(`[${waveFinal}]pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:black@0[spec_raw]`);
+      specLayer = 'spec_raw';
+    } else {
+      filterParts.push(`${audioInput}showfreqs=size=${resolution}:mode=bar:fscale=log:colors=${colors}:ascale=cbrt[spec_raw]`);
+      specLayer = 'spec_raw';
+    }
+
+    if (alignment === 'center' && shape !== 'waveform' && shape !== 'symmetric' && shape !== 'circular') {
+      filterParts.push(`[${specLayer}]split[sl1][sl2]`);
+      filterParts.push(`[sl1]crop=w=iw/2:h=ih:x=0:y=0[sl1_crop]`);
+      filterParts.push(`[sl2]crop=w=iw/2:h=ih:x=0:y=0,hflip[sl2_crop]`);
+      filterParts.push(`[sl2_crop][sl1_crop]hstack[spec_mirrored]`);
+      specLayer = 'spec_mirrored';
+    } else if (alignment === 'center' && shape === 'circular') {
+      // Rotate the circle by 90 degrees to put bass at bottom
+      filterParts.push(`[${specLayer}]rotate=PI/2:c=black@0:ow=iw:oh=ih[spec_rotated]`);
+      specLayer = 'spec_rotated';
+    } else if (alignment === 'right') {
+      filterParts.push(`[${specLayer}]hflip[spec_flipped]`);
+      specLayer = 'spec_flipped';
+    }
+
+    if (colorMode === 'rgb_running' || colorMode === 'rgb_beat') {
+      filterParts.push(`[${specLayer}]format=rgba,colorkey=black:0.01:0.3[spec_trans]`);
+      // rgb_beat could theoretically be linked to beat, but hue=H=t*... is close enough for FFmpeg without complex scripting
+      const speed = colorMode === 'rgb_beat' ? 't*360' : 't*120';
+      filterParts.push(`[spec_trans]hue=H=${speed}:s=2[spec_hue]`);
+      specLayer = 'spec_hue';
+    } else {
+      filterParts.push(`[${specLayer}]format=rgba,colorkey=black:0.01:0.3[spec_trans]`);
+      specLayer = 'spec_trans';
+    }
+
+    filterParts.push(`[${bgLayer}][${specLayer}]overlay=0:0[spec_final]`);
+    filterParts.push(`[spec_final]split[s0][s1];[s0]palettegen=max_colors=128[p];[s1][p]paletteuse=dither=bayer`);
+
+    const ffmpegCmd = ffmpeg();
+    inputs.forEach(inp => ffmpegCmd.input(inp));
+
+    ffmpegCmd
+      .outputOptions([
+        '-t 15', 
+        '-filter_complex', filterParts.join(';')
+      ])
+      .save(outputPath)
+      .on('end', () => resolve(outputPath))
+      .on('error', (err) => reject(err));
+  });
 });

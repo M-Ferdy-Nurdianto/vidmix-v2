@@ -23,3 +23,16 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #00D0FF;
 }
+
+@keyframes progress-indeterminate {
+  0% { left: -60%; }
+  50% { left: 100%; }
+  100% { left: -60%; }
+}
+
+.animate-indeterminate {
+  background-color: #00FF55;
+  width: 50% !important;
+  border-left: 4px solid black;
+  animation: progress-indeterminate 2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
