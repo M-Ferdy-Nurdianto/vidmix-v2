@@ -1,36 +1,71 @@
-# Vidmix v2
+# 🎬 Vidmix v2
 
-Vidmix v2 is a high-performance desktop automation software built with Node.js, React, and Electron. Powered by the industry-standard FFmpeg engine, it allows users to batch-process videos, inject randomized or custom-ordered music, apply custom looping, and render everything efficiently using hardware acceleration.
+*(Scroll down for English version)*
 
-This document serves as both a user guide and a comprehensive technical reference for developers and AI assistants.
+**Vidmix v2** adalah perangkat lunak otomasi pengolahan video dan audio berbasis Desktop yang dibangun menggunakan Node.js, React, dan Electron. Ditenagai oleh *engine* standar industri **FFmpeg**, aplikasi ini memungkinkan pengguna untuk memproses video secara massal (*batch*), menyatukan musik acak atau berurutan, menerapkan pemutaran berulang (*looping*), membuat spektrum audio, hingga menghapus latar belakang video secara efisien menggunakan akselerasi perangkat keras (*hardware acceleration*).
 
-## Table of Contents
-1. [Features](#features)
-2. [Prerequisites & Installation](#prerequisites--installation)
-3. [System Architecture](#system-architecture)
-4. [File Structure & Component Analysis](#file-structure--component-analysis)
-5. [Code Level Implementation Details](#code-level-implementation-details)
-6. [Technical Debt & Areas for Improvement](#technical-debt--areas-for-improvement)
+Aplikasi ini juga dilengkapi dengan **Sistem Lisensi Berbasis Perangkat (Hardware-bound License System)** tingkat tinggi yang dirancang anti-bocor, serta **Panel Kontrol Master (Owner Bypass)** khusus untuk administrator.
 
 ---
 
-## Features
-- **Batch Processing:** Drop multiple videos and audio files, configure settings, and generate output efficiently.
-- **Smart Audio Engine:** Utilizes Fisher-Yates Shuffle for randomizing music sequences or allows manual ordering via a Drag & Drop interface.
-- **Custom Looping & Seamless Transitions:** Provides flexible preset durations (15m, 30m, 1h, custom) with automatic fade-in/fade-out transitions to ensure seamless audio joining.
-- **State Persistence:** Automatically remembers previously used directories (videos, music, output) using a local JSON configuration.
-- **Real-Time Progress & ETA:** Interactive full-screen overlay displaying a precise progress bar and ETA calculations during rendering.
-- **Safety Checks:** Prevents accidental overwrites and provides warnings before closing the application during an active render process.
+## 🇮🇩 Bahasa Indonesia
+
+### 🌟 Fitur Utama
+- **Video Mixer (Batch Processing):** Masukkan banyak video dan audio sekaligus, atur konfigurasi, dan *render* semuanya secara otomatis.
+- **Smart Audio Engine:** Menggunakan algoritma *Fisher-Yates Shuffle* untuk mengacak urutan musik secara cerdas, atau gunakan urutan manual (*Drag & Drop*).
+- **Custom Looping & Seamless Transitions:** Pilihan preset durasi (15 menit, 30 menit, 1 jam, atau kustom) dengan transisi *fade-in/fade-out* otomatis agar pergantian audio terdengar sangat mulus.
+- **Spectrum Maker:** Buat visualisasi audio (spektrum) yang reaktif terhadap ketukan lagu (*beat-reactive*).
+- **Remove Background:** Hapus latar belakang hijau (*green screen*) pada video menggunakan filter warna FFmpeg (*chromakey*).
+- **Sistem Keamanan Kelas Militer (Baru!):**
+  - Lisensi dikunci secara permanen ke **Device ID** milik pelanggan (anti-bocor/anti-pembajakan).
+  - *Database* terenkripsi yang diamankan di Cloud (GitHub Gist).
+  - **Master Control Panel:** Ruang rahasia (tekan `10-`) bagi *Owner* untuk menghasilkan dan mencabut kunci lisensi, lengkap dengan fitur *Owner Bypass* (Otomatis masuk tanpa lisensi bagi pemilik aplikasi).
+- **Real-Time Progress & Neo-Brutalism UI:** Tampilan antarmuka yang sangat tebal, berani, dinamis, dan estetik dengan bilah progres yang *real-time*.
+
+### 🚀 Cara Menjalankan (Development)
+Pastikan Anda sudah menginstal **Node.js** (v18+) di komputer Anda. (Aplikasi ini sudah membundel FFmpeg secara otomatis, sehingga Anda *tidak perlu* menginstal FFmpeg secara terpisah!)
+
+1. *Clone* repositori ini:
+   ```bash
+   git clone https://github.com/M-Ferdy-Nurdianto/vidmix-v2.git
+   cd vidmix-v2
+   ```
+2. Instal semua dependensi:
+   ```bash
+   npm install
+   ```
+3. Jalankan aplikasi:
+   ```bash
+   npm run electron:dev
+   ```
+
+### 📦 Cara Build (Produksi)
+Untuk mem-paket aplikasi menjadi file `.exe` dan `.zip` (siap diedarkan ke pelanggan):
+```bash
+npm run electron:build
+```
+Hasil file akan muncul di dalam folder `dist-electron/`.
 
 ---
+---
 
-## Prerequisites & Installation
+## 🇬🇧 English Version
 
-### Prerequisites
-- Node.js (v18 or newer)
-- FFmpeg installed and registered in your Windows environment `PATH`.
+### 🌟 Key Features
+- **Video Mixer (Batch Processing):** Drop multiple videos and audio files, configure your settings, and batch-render everything automatically.
+- **Smart Audio Engine:** Utilizes the *Fisher-Yates Shuffle* algorithm for intelligent music randomization, or manual ordering via a Drag & Drop interface.
+- **Custom Looping & Seamless Transitions:** Flexible duration presets (15m, 30m, 1h, custom) with automatic fade-in/fade-out transitions ensuring seamless audio joining.
+- **Spectrum Maker:** Generate beat-reactive audio visualization spectrums dynamically.
+- **Remove Background:** Easily strip green screen backgrounds from videos utilizing FFmpeg's chromakey filters.
+- **Military-Grade Security System (New!):**
+  - Licenses are permanently bound to the customer's **Device ID** (leak-proof & anti-piracy).
+  - Cloud-secured encrypted database (via GitHub Gist).
+  - **Master Control Panel:** A secret room (press `10-`) for the Owner to generate and revoke license keys, featuring an *Owner Bypass* (Automatic login for the app owner without needing a license).
+- **Real-Time Progress & Neo-Brutalism UI:** A bold, dynamic, and highly aesthetic user interface with precise real-time progress bars.
 
-### How to Run
+### 🚀 How to Run (Development)
+Ensure you have **Node.js** (v18+) installed on your system. (This application automatically bundles FFmpeg, so you do *not* need to install it separately!)
+
 1. Clone the repository:
    ```bash
    git clone https://github.com/M-Ferdy-Nurdianto/vidmix-v2.git
@@ -40,103 +75,24 @@ This document serves as both a user guide and a comprehensive technical referenc
    ```bash
    npm install
    ```
-3. Start the application (Development Mode):
+3. Start the application:
    ```bash
    npm run electron:dev
    ```
 
-### Build for Production
-To package the app into a standalone `.exe` for Windows:
+### 📦 Build for Production
+To package the application into standalone `.exe` and `.zip` files (ready for distribution):
 ```bash
 npm run electron:build
 ```
+The output files will be generated in the `dist-electron/` folder.
 
 ---
 
-## System Architecture
+## ©️ Copyright & License
 
-Vidmix v2 employs a hybrid architecture separating the frontend UI from the backend processing engine.
+**Copyright © 2026 M. Ferdy Nurdianto. All rights reserved.**
 
-- **Frontend (Renderer Process):** Built with React and Vite. It handles the interactive Neo-Brutalism UI, user state management, and file Drag & Drop interactions.
-- **Backend (Main Process):** Built with Electron (Node.js). It handles native file system operations, OS dialogs, and spawns the FFmpeg child processes.
-- **IPC Bridge (Context Isolation):** Communication between the Frontend and Backend is secured via `preload.js` using `contextBridge`. The renderer has no direct access to Node.js APIs, preventing XSS vulnerabilities.
+This software and its underlying source code are proprietary and confidential. Unauthorized copying, distribution, modification, or sale of this software, via any medium, is strictly prohibited without explicit written permission from the copyright holder. 
 
----
-
-## File Structure & Component Analysis
-
-### Root Directory
-- `package.json`: Defines project dependencies (React, Electron, Tailwind, fluent-ffmpeg) and scripts (`react:dev`, `electron:dev`, `electron:build`).
-- `vite.config.js`: Configuration for the Vite bundler used for building the React frontend.
-- `tailwind.config.js`: Configuration for TailwindCSS styling.
-
-### 1. `electron/main.js`
-The entry point for the Electron application.
-- **Window Management:** Initializes the `BrowserWindow`, loads the React development server or production build, and handles window close events (preventing closure during active renders).
-- **Configuration Management:** Implements `loadConfig` and `saveConfig` to persist user directory preferences to `vidmix-config.json` in the user's AppData.
-- **IPC Handlers:** Registers listeners for `ipcMain.handle` to trigger native dialogs (`showOpenDialog`, `showSaveDialog`), manage local GIF directories, and execute the FFmpeg render process.
-- **FFmpeg Execution:** Constructs complex filter graphs for FFmpeg based on the user's payload (loop duration, audio ordering, watermarks) and spawns the process asynchronously.
-
-### 2. `electron/preload.js`
-The security bridge.
-- Uses `contextBridge.exposeInMainWorld('api', {...})` to safely expose specific functions to the React frontend.
-- Exposes methods like `selectMediaFile`, `startRender`, `getConfig`, and listeners for progress updates (`onRenderProgress`).
-
-### 3. `src/App.jsx`
-The primary monolith React component handling the application state and UI logic.
-- **State Management:** Uses React Hooks (`useState`, `useEffect`) to track output directories, video/audio lists, custom names, looping presets, and render progress.
-- **Drag & Drop Logic:** Contains functions (`handleDragStart`, `handleDrop`, `handleLayerDrop`) to manage rearranging audio files and canvas layers.
-- **Render Trigger:** The `handleGenerate` function acts as the bridge to send the current state payload via IPC to `window.api.startRender`.
-
-### 4. `src/components/Editor/`
-Contains components responsible for the visual overlay editor.
-- **`LayerCanvas.jsx`**: Renders the video preview and allows users to position and resize overlay layers (text, images, GIFs) using absolute positioning and drag events.
-- **`LayerControlPanel.jsx`**: The sidebar interface for adding, deleting, and modifying the properties (Z-index, opacity, scale) of individual layers.
-
----
-
-## Code Level Implementation Details
-
-### IPC Communication Flow
-1. User clicks "Generate" in `App.jsx`.
-2. `App.jsx` calls `window.api.startRender(options)`.
-3. `preload.js` forwards this via `ipcRenderer.invoke('start-render', options)`.
-4. `main.js` catches `ipcMain.handle('start-render')`, extracts the configuration, and begins constructing the `fluent-ffmpeg` command.
-5. During FFmpeg execution, `main.js` sends progress updates back via `mainWindow.webContents.send('render-progress', data)`.
-6. `App.jsx` listens to this via `window.api.onRenderProgress` and updates the progress bar UI.
-
-### Audio Shuffling Logic
-If the user selects random audio ordering, the application uses the Fisher-Yates shuffle algorithm before passing the audio files to FFmpeg. If custom ordering is selected, it respects the index order defined by the user's drag-and-drop arrangement in `App.jsx`.
-
-### FFmpeg Complex Filters
-The application relies heavily on FFmpeg's `-filter_complex`. For example, looping a video to a specific duration involves:
-- Using `stream_loop -1` on the video input.
-- Using `concat` filter to join multiple audio streams.
-- Applying `afade` (audio fade) to smooth transitions between concatenated audio files.
-- Using `overlay` filter to apply watermarks or text layers on top of the video stream.
-
----
-
-## Technical Debt & Areas for Improvement
-
-While the current implementation is highly functional, there are architectural improvements that can be made:
-
-### 1. Frontend Monolith (`App.jsx`)
-- **Current State:** `App.jsx` is over 1000 lines long, handling everything from global state, drag-and-drop mechanics, file selection, to UI rendering.
-- **Recommendation:** Refactor into smaller custom hooks (e.g., `useMediaManager`, `useRenderState`) and separate UI sections into independent components. Consider using a state management library like Zustand or Redux for scalability.
-
-### 2. Hardcoded Limitations
-- **Current State:** There are hardcoded limits in `App.jsx` restricting users to a maximum of 5 videos and 20 audio files. This validation only exists on the frontend.
-- **Recommendation:** Move validation logic to a shared configuration file or validate at the backend level. Make these limits configurable via settings.
-
-### 3. FFmpeg Execution (Blocking Pattern)
-- **Current State:** While FFmpeg spawns asynchronously, there is no robust queue management system. Triggering multiple renders concurrently may cause UI freezing or resource exhaustion.
-- **Recommendation:** Implement a background job queue manager in the main process to handle multiple rendering tasks sequentially.
-
-### 4. Type Safety
-- **Current State:** The codebase is written in pure JavaScript, which can lead to runtime errors, especially with complex IPC payloads.
-- **Recommendation:** Migrate to TypeScript to ensure strict typings between the IPC bridge, making the communication between the frontend and backend robust.
-
-### 5. Testing
-- **Current State:** There is no automated testing setup (Unit or Integration tests).
-- **Recommendation:** Implement Jest/Vitest for testing utility functions and React components, and consider Playwright for end-to-end testing of the Electron application.
+*VidMix is designed and developed by M. Ferdy Nurdianto.*

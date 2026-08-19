@@ -48,6 +48,15 @@
       "node_modules/@ffmpeg-installer/**/*",
       "node_modules/@ffprobe-installer/**/*"
     ],
+    "extraResources": [
+      {
+        "from": "public/gifs",
+        "to": "public/gifs",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
     "win": {
       "target": [
         {
@@ -59,7 +68,7 @@
           "arch": ["x64"]
         }
       ],
-      "icon": "public/android-chrome-512x512.png"
+      "icon": "public/favicon.ico"
     },
     "nsis": {
       "oneClick": false,
