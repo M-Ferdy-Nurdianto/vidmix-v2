@@ -25,5 +25,19 @@ contextBridge.exposeInMainWorld('api', {
   encodeFramesToMov: (frames, fps, outputPath) => ipcRenderer.invoke('encode-frames-to-mov', { frames, fps, outputPath }),
   removeVideoBg: (options) => ipcRenderer.invoke('remove-video-bg', options),
   onRemoveVideoBgProgress: (callback) => ipcRenderer.on('remove-video-bg-progress', (event, data) => callback(data)),
-  removeRemoveVideoBgProgress: () => ipcRenderer.removeAllListeners('remove-video-bg-progress')
+  removeRemoveVideoBgProgress: () => ipcRenderer.removeAllListeners('remove-video-bg-progress'),
+  // ─── License API ─────────────────────────────────────────────────────────────
+  license: {
+    check: () => ipcRenderer.invoke('license:check'),
+    activate: (key) => ipcRenderer.invoke('license:activate', key),
+    info: () => ipcRenderer.invoke('license:info'),
+    deviceId: () => ipcRenderer.invoke('license:deviceId'),
+  },
+  // ─── Admin API ───────────────────────────────────────────────────────────────
+  admin: {
+    verifyToken: (token) => ipcRenderer.invoke('admin:verifyToken', token),
+    listKeys: (token) => ipcRenderer.invoke('admin:listKeys', token),
+    generateKey: (token, type, deviceId) => ipcRenderer.invoke('admin:generateKey', { token, type, deviceId }),
+    revokeKey: (token, key) => ipcRenderer.invoke('admin:revokeKey', { token, key })
+  },
 });

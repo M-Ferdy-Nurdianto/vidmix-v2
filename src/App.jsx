@@ -3,6 +3,10 @@ import VideoEditor from './components/Editor/VideoEditor';
 import Mixer from './components/Mixer/Mixer';
 import SpectrumGenerator from './components/SpectrumGenerator/SpectrumGenerator';
 import RemoveBG from './components/RemoveBG/RemoveBG';
+import LicenseGate from './components/License/LicenseGate';
+import LicenseInfo from './components/License/LicenseInfo';
+import AdminPanel from './components/Admin/AdminPanel';
+import OpeningScreen from './components/OpeningScreen';
 import toast, { Toaster, ToastBar } from 'react-hot-toast';
 import { Clapperboard, Music, Scissors } from 'lucide-react';
 import { playLoudSuccessSound } from './utils/toast-helper';
@@ -26,6 +30,32 @@ export default function App() {
   const [elapsedMs, setElapsedMs] = useState(0);
   const [renderStartTime, setRenderStartTime] = useState(null);
   const [view, setView] = useState('mixer');
+  const [showAdminPanel, setShowAdminPanel] = useState(false);
+  const [hasPlayedOpening, setHasPlayedOpening] = useState(false);
+
+  useEffect(() => {
+    let keySequence = '';
+    const targetSequence = '10-';
+    
+    const handleGlobalKeyDown = (e) => {
+      // Abaikan jika user sedang mengetik di input box
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+      keySequence += e.key;
+      // Simpan hanya 3 karakter terakhir
+      if (keySequence.length > targetSequence.length) {
+        keySequence = keySequence.slice(-targetSequence.length);
+      }
+      
+      // Jika urutan sama dengan "10-"
+      if (keySequence === targetSequence) {
+        setShowAdminPanel(prev => !prev);
+        keySequence = ''; // Reset setelah berhasil
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, []);
 
   useEffect(() => {
     let interval;
@@ -172,15 +202,87 @@ export default function App() {
 
 
   return (
-    <div className="min-h-screen bg-[#F4F4F0] text-zinc-900 font-mono p-6 select-none relative pb-16 transition-colors duration-300">
+    <>
+      <LicenseGate>
+        <div className="min-h-screen bg-[#F4F4F0] text-zinc-900 font-mono p-6 select-none relative pb-16 transition-colors duration-300">
+          {/* Global Navigation */}
+          <div className="flex gap-4 mb-6 border-b-4 border-black pb-4 items-center">
+            <button 
+              onClick={() => setView('mixer')}
+              className={`px-6 py-2 font-black border-4 border-black text-xl transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-1 active:translate-y-1 active:shadow-none flex items-center gap-2 ${view === 'mixer' ? 'bg-[#00FF55]' : 'bg-white'}`}
+            >
+              <Clapperboard className="w-6 h-6 fill-current" strokeWidth={2.5} /> VIDEO MIXER
+            </button>
+            <button 
+              onClick={() => setView('spectrum')}
+              className={`px-6 py-2 font-black border-4 border-black text-xl transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-1 active:translate-y-1 active:shadow-none flex items-center gap-2 ${view === 'spectrum' ? 'bg-[#00F0FF]' : 'bg-white'}`}
+            >
+              <Music className="w-6 h-6 fill-current" strokeWidth={2.5} /> SPECTRUM MAKER
+            </button>
+            <button 
+              onClick={() => setView('removebg')}
+              className={`px-6 py-2 font-black border-4 border-black text-xl transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-1 active:translate-y-1 active:shadow-none flex items-center gap-2 ${view === 'removebg' ? 'bg-[#FF3CAC] text-white' : 'bg-white'}`}
+            >
+              <Scissors className="w-6 h-6" strokeWidth={2.5} /> REMOVE BG
+            </button>
+            <LicenseInfo />
+          </div>
+
+          {view === 'removebg' ? (
+            <RemoveBG />
+          ) : view === 'spectrum' ? (
+            <SpectrumGenerator />
+          ) : (
+            <>
+              <div style={{ display: editingVideoId ? 'none' : 'block' }}>
+                <Mixer 
+                  videos={videos} setVideos={setVideos}
+                  audios={audios} setAudios={setAudios}
+                  outputDir={outputDir} setOutputDir={setOutputDir}
+                  customName={customName} setCustomName={setCustomName}
+                  loopPreset={loopPreset} setLoopPreset={setLoopPreset}
+                  customMinutes={customMinutes} setCustomMinutes={setCustomMinutes}
+                  watermark={watermark} setWatermark={setWatermark}
+                  allowOverwrite={allowOverwrite} setAllowOverwrite={setAllowOverwrite}
+                  audioOrderType={audioOrderType} setAudioOrderType={setAudioOrderType}
+                  compressionLevel={compressionLevel} setCompressionLevel={setCompressionLevel}
+                  isProcessing={isProcessing} progressData={progressData} elapsedMs={elapsedMs}
+                  isSuccess={isSuccess} setIsSuccess={setIsSuccess} lastSuccessFolder={lastSuccessFolder}
+                  handleSelectFolder={handleSelectFolder} handleDrop={handleDrop} handleDragOver={handleDragOver} handleGenerate={handleGenerate}
+                  setEditingVideoId={setEditingVideoId}
+                />
+              </div>
+              <VideoEditor 
+                videos={videos} 
+                setVideos={setVideos} 
+                editingVideoId={editingVideoId} 
+                setEditingVideoId={setEditingVideoId} 
+              />
+            </>
+          )}
+          
+          {/* Opening Screen (dimuat SETELAH lolos LicenseGate) */}
+          {!hasPlayedOpening && (
+            <OpeningScreen onComplete={() => setHasPlayedOpening(true)} />
+          )}
+        </div>
+      </LicenseGate>
+
+      {/* Secret Admin Panel is truly Global */}
+      {showAdminPanel && (
+        <AdminPanel onClose={() => setShowAdminPanel(false)} />
+      )}
+
+      {/* Global Toaster */}
       <Toaster 
         position="top-right"
         toastOptions={{
+          style: { zIndex: 10000 },
           success: { position: 'top-center' },
           loading: { position: 'top-center' },
           error: {
             duration: 15000,
-            style: { pointerEvents: 'auto' }
+            style: { pointerEvents: 'auto', zIndex: 10000 }
           }
         }}
       >
@@ -237,61 +339,6 @@ export default function App() {
           );
         }}
       </Toaster>
-      
-      {/* Global Navigation */}
-      <div className="flex gap-4 mb-6 border-b-4 border-black pb-4">
-        <button 
-          onClick={() => setView('mixer')}
-          className={`px-6 py-2 font-black border-4 border-black text-xl transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-1 active:translate-y-1 active:shadow-none flex items-center gap-2 ${view === 'mixer' ? 'bg-[#00FF55]' : 'bg-white'}`}
-        >
-          <Clapperboard className="w-6 h-6 fill-current" strokeWidth={2.5} /> VIDEO MIXER
-        </button>
-        <button 
-          onClick={() => setView('spectrum')}
-          className={`px-6 py-2 font-black border-4 border-black text-xl transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-1 active:translate-y-1 active:shadow-none flex items-center gap-2 ${view === 'spectrum' ? 'bg-[#00F0FF]' : 'bg-white'}`}
-        >
-          <Music className="w-6 h-6 fill-current" strokeWidth={2.5} /> SPECTRUM MAKER
-        </button>
-        <button 
-          onClick={() => setView('removebg')}
-          className={`px-6 py-2 font-black border-4 border-black text-xl transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-1 active:translate-y-1 active:shadow-none flex items-center gap-2 ${view === 'removebg' ? 'bg-[#FF3CAC] text-white' : 'bg-white'}`}
-        >
-          <Scissors className="w-6 h-6" strokeWidth={2.5} /> REMOVE BG
-        </button>
-      </div>
-
-      {view === 'removebg' ? (
-        <RemoveBG />
-      ) : view === 'spectrum' ? (
-        <SpectrumGenerator />
-      ) : (
-        <>
-          <div style={{ display: editingVideoId ? 'none' : 'block' }}>
-            <Mixer 
-              videos={videos} setVideos={setVideos}
-              audios={audios} setAudios={setAudios}
-              outputDir={outputDir} setOutputDir={setOutputDir}
-              customName={customName} setCustomName={setCustomName}
-              loopPreset={loopPreset} setLoopPreset={setLoopPreset}
-              customMinutes={customMinutes} setCustomMinutes={setCustomMinutes}
-              watermark={watermark} setWatermark={setWatermark}
-              allowOverwrite={allowOverwrite} setAllowOverwrite={setAllowOverwrite}
-              audioOrderType={audioOrderType} setAudioOrderType={setAudioOrderType}
-              compressionLevel={compressionLevel} setCompressionLevel={setCompressionLevel}
-              isProcessing={isProcessing} progressData={progressData} elapsedMs={elapsedMs}
-              isSuccess={isSuccess} setIsSuccess={setIsSuccess} lastSuccessFolder={lastSuccessFolder}
-              handleSelectFolder={handleSelectFolder} handleDrop={handleDrop} handleDragOver={handleDragOver} handleGenerate={handleGenerate}
-              setEditingVideoId={setEditingVideoId}
-            />
-          </div>
-          <VideoEditor 
-            videos={videos} 
-            setVideos={setVideos} 
-            editingVideoId={editingVideoId} 
-            setEditingVideoId={setEditingVideoId} 
-          />
-        </>
-      )}
-    </div>
+    </>
   );
 }

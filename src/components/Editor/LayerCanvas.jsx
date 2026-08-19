@@ -283,13 +283,22 @@ export default function LayerCanvas({ mediaPath, mediaType, layers, setLayers, s
  )}
  
  {['watermark', 'sticker', 'image'].includes(layer.type) && (
- <img 
- src={`file://${layer.src}`} 
- alt={layer.type} 
- className="pointer-events-none"
- style={{ maxWidth: '300px', maxHeight: '300px', objectFit: 'contain' }}
- draggable="false"
- />
+  layer.src.toLowerCase().match(/\.(mp4|mov|webm)$/) ? (
+    <video 
+      src={`file://${layer.src}`} 
+      autoPlay loop muted 
+      className="pointer-events-none"
+      style={{ maxWidth: '300px', maxHeight: '300px', objectFit: 'contain' }}
+    />
+  ) : (
+    <img 
+      src={`file://${layer.src}`} 
+      alt={layer.type} 
+      className="pointer-events-none"
+      style={{ maxWidth: '300px', maxHeight: '300px', objectFit: 'contain' }}
+      draggable="false"
+    />
+  )
  )}
  
  {layer.type === 'spectrum' && (

@@ -39,18 +39,33 @@
       "dist/**/*",
       "electron/**/*",
       "public/**/*",
+      "node_modules/@ffmpeg-installer/**/*",
+      "node_modules/@ffprobe-installer/**/*",
+      "node_modules/fluent-ffmpeg/**/*",
       "package.json"
     ],
     "asarUnpack": [
-      "node_modules/@ffmpeg-installer/**/*"
+      "node_modules/@ffmpeg-installer/**/*",
+      "node_modules/@ffprobe-installer/**/*"
     ],
     "win": {
-      "target": "nsis",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
+          "target": "zip",
+          "arch": ["x64"]
+        }
+      ],
       "icon": "public/android-chrome-512x512.png"
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
     }
   }
 }

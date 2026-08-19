@@ -201,7 +201,11 @@ export default function VideoEditor({
                       className="aspect-square bg-zinc-100 border-2 border-black hover:bg-[#00FF55] cursor-grab active:cursor-grabbing p-1 transition-colors flex items-center justify-center shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 group relative"
                       title="Seret ke kanvas, atau klik untuk tambah"
                     >
-                      <img src={`file://${gifPath}`} className="w-full h-full object-contain pointer-events-none" />
+                      {gifPath.toLowerCase().match(/\.(mp4|mov|webm)$/) ? (
+                        <video src={`file://${gifPath}`} autoPlay loop muted className="w-full h-full object-contain pointer-events-none" />
+                      ) : (
+                        <img src={`file://${gifPath}`} className="w-full h-full object-contain pointer-events-none" />
+                      )}
                     </div>
                   );
                 })}

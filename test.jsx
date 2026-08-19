@@ -1,1 +1,0 @@
-const a = <label>Kualitas & Kompresi</label>

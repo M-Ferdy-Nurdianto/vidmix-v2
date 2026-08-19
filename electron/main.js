@@ -2,6 +2,8 @@ const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const crypto = require('crypto');
+const https = require('https');
 const ffmpeg = require('fluent-ffmpeg');
 const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path.replace('app.asar', 'app.asar.unpacked');
 const { execSync } = require('child_process');
@@ -21,6 +23,162 @@ let activeFFmpegCommand = null;
 let isRenderCanceled = false;
 let isRendering = false;
 const configPath = path.join(app.getPath('userData'), 'vidmix-config.json');
+
+// ─── License System ───────────────────────────────────────────────────────────
+let licenseConfig = { GIST_ID: '', GITHUB_USERNAME: '', GIST_FILENAME: 'vidmix-licenses.json' };
+try { licenseConfig = require('./license-config.js'); } catch(e) { console.warn('license-config.js not found'); }
+
+const licensePath = path.join(app.getPath('userData'), 'vidmix-license.enc');
+
+const LICENSE_TYPES = {
+  '2w': { label: '2 Minggu', days: 14 },
+  '1m': { label: '1 Bulan', days: 30 },
+  'lifetime': { label: 'Lifetime', days: null },
+};
+
+/** Generate a stable hardware-based device ID */
+function getDeviceId() {
+  const cpus = os.cpus();
+  const raw = [
+    os.hostname(),
+    os.platform(),
+    cpus.length > 0 ? cpus[0].model : 'unknown',
+    os.arch(),
+    os.totalmem().toString(),
+  ].join('|');
+  return crypto.createHash('sha256').update(raw).digest('hex').slice(0, 32);
+}
+
+/** Encrypt data with AES-256-CBC using deviceId as key */
+function encryptLicense(data, deviceId) {
+  const key = crypto.createHash('sha256').update(deviceId).digest();
+  const iv = crypto.randomBytes(16);
+  const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
+  const encrypted = Buffer.concat([cipher.update(JSON.stringify(data), 'utf8'), cipher.final()]);
+  return iv.toString('hex') + ':' + encrypted.toString('hex');
+}
+
+/** Decrypt license data */
+function decryptLicense(encStr, deviceId) {
+  const [ivHex, encHex] = encStr.split(':');
+  if (!ivHex || !encHex) throw new Error('Format file lisensi tidak valid');
+  const key = crypto.createHash('sha256').update(deviceId).digest();
+  const iv = Buffer.from(ivHex, 'hex');
+  const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+  const decrypted = Buffer.concat([decipher.update(Buffer.from(encHex, 'hex')), decipher.final()]);
+  return JSON.parse(decrypted.toString('utf8'));
+}
+
+/** Save license to encrypted local file */
+function saveLicenseLocal(licenseData) {
+  const deviceId = getDeviceId();
+  const encrypted = encryptLicense(licenseData, deviceId);
+  fs.writeFileSync(licensePath, encrypted, 'utf8');
+}
+
+/** Load & validate local license cache */
+function loadLicenseLocal() {
+  try {
+    if (!fs.existsSync(licensePath)) return null;
+    const deviceId = getDeviceId();
+    const encStr = fs.readFileSync(licensePath, 'utf8');
+    const data = decryptLicense(encStr, deviceId);
+    // Validate device match
+    if (data.deviceId !== deviceId) return { status: 'invalid', reason: 'Device tidak cocok' };
+    // Validate expiry
+    if (data.expiresAt) {
+      const now = new Date();
+      const exp = new Date(data.expiresAt);
+      if (now > exp) {
+        const diffMs = now - exp;
+        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        return { status: 'expired', reason: `Lisensi expired ${diffDays} hari yang lalu`, data };
+      }
+    }
+    return { status: 'valid', data };
+  } catch (e) {
+    return { status: 'invalid', reason: 'File lisensi rusak atau tidak valid: ' + e.message };
+  }
+}
+
+/** Fetch license DB from GitHub Gist */
+function fetchGistDB() {
+  return new Promise((resolve, reject) => {
+    if (!licenseConfig.GIST_ID || licenseConfig.GIST_ID === 'ISI_GIST_ID_DISINI') {
+      return reject(new Error('GIST_ID belum dikonfigurasi di electron/license-config.js'));
+    }
+    // Use raw Gist URL (no auth needed for reading)
+    const url = `https://gist.githubusercontent.com/${licenseConfig.GITHUB_USERNAME}/${licenseConfig.GIST_ID}/raw/${licenseConfig.GIST_FILENAME}`;
+    const options = {
+      hostname: 'gist.githubusercontent.com',
+      path: `/${licenseConfig.GITHUB_USERNAME}/${licenseConfig.GIST_ID}/raw/${licenseConfig.GIST_FILENAME}`,
+      method: 'GET',
+      headers: { 'User-Agent': 'VidMix/2.0', 'Cache-Control': 'no-cache' },
+    };
+    const req = https.request(options, (res) => {
+      let raw = '';
+      res.on('data', (c) => (raw += c));
+      res.on('end', () => {
+        if (res.statusCode !== 200) return reject(new Error(`Server error: ${res.statusCode}`));
+        try { resolve(JSON.parse(raw)); }
+        catch (e) { reject(new Error('Response tidak valid dari server')); }
+      });
+    });
+    req.setTimeout(10000, () => { req.destroy(); reject(new Error('Timeout: tidak bisa terhubung ke server lisensi')); });
+    req.on('error', (e) => reject(new Error('Tidak bisa terhubung ke server: ' + e.message)));
+    req.end();
+  });
+}
+
+/** Activate a license key (online validation + local save) */
+async function activateLicense(key) {
+  const trimmedKey = key.trim().toUpperCase();
+  if (!trimmedKey) throw new Error('License key tidak boleh kosong');
+
+  const db = await fetchGistDB();
+  const entry = db.licenses && db.licenses[trimmedKey];
+  if (!entry) throw new Error('License key tidak valid atau tidak ditemukan');
+
+  const deviceId = getDeviceId();
+
+  // Key sudah diaktifkan di device lain
+  if (entry.deviceId && entry.deviceId !== deviceId) {
+    throw new Error('License key ini sudah terdaftar di perangkat lain');
+  }
+
+  // Hitung tanggal expired
+  const typeCfg = LICENSE_TYPES[entry.type];
+  if (!typeCfg) throw new Error('Tipe lisensi tidak dikenali: ' + entry.type);
+
+  let expiresAt = null;
+  if (entry.expiresAt) {
+    // Sudah pernah diaktifkan di device ini sebelumnya – pakai expired lama
+    expiresAt = entry.expiresAt;
+  } else if (typeCfg.days !== null) {
+    const exp = new Date();
+    exp.setDate(exp.getDate() + typeCfg.days);
+    expiresAt = exp.toISOString().split('T')[0];
+  }
+
+  const licenseData = {
+    key: trimmedKey,
+    type: entry.type,
+    label: typeCfg.label,
+    deviceId,
+    activatedAt: entry.activatedAt || new Date().toISOString().split('T')[0],
+    expiresAt,
+  };
+
+  saveLicenseLocal(licenseData);
+  return licenseData;
+}
+
+/** Compute remaining days */
+function getRemainingDays(expiresAt) {
+  if (!expiresAt) return null; // lifetime
+  const diff = new Date(expiresAt) - new Date();
+  return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+}
 
 function loadConfig() {
   try {
@@ -47,7 +205,8 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
-      webSecurity: false
+      webSecurity: false,
+      autoplayPolicy: 'no-user-gesture-required'
     },
     icon: path.join(__dirname, '../public/favicon.ico'),
     autoHideMenuBar: true
@@ -187,11 +346,12 @@ ipcMain.handle('get-gifs', async () => {
     }
     
     const files = fs.readdirSync(gifsPath);
+    const allowed = ['.gif', '.png', '.mp4', '.mov', '.webm'];
     return files
-      .filter(file => file.toLowerCase().endsWith('.gif'))
+      .filter(file => allowed.includes(path.extname(file).toLowerCase()))
       .map(file => path.join(gifsPath, file).replace(/\\/g, '/'));
   } catch (err) {
-    console.error('Error reading gifs:', err);
+    console.error('Error reading gifs directory:', err);
     return [];
   }
 });
@@ -212,8 +372,8 @@ ipcMain.handle('open-gifs-folder', () => {
 
 ipcMain.handle('upload-gif', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
-    title: 'Pilih File GIF',
-    filters: [{ name: 'Images', extensions: ['gif'] }],
+    title: 'Pilih File Media',
+    filters: [{ name: 'Media Files', extensions: ['gif', 'png', 'mp4', 'mov', 'webm'] }],
     properties: ['openFile']
   });
 
@@ -1159,4 +1319,177 @@ ipcMain.handle('remove-video-bg', async (event, options) => {
       .on('end', () => resolve(outputPath))
       .on('error', (err) => reject(new Error('Gagal proses video: ' + err.message)));
   });
+});
+
+// ─── License IPC Handlers ─────────────────────────────────────────────────────
+
+/** Check current license status (called on app startup) */
+ipcMain.handle('license:check', async () => {
+  const result = loadLicenseLocal();
+  if (!result) {
+    return { status: 'not_activated', deviceId: getDeviceId() };
+  }
+  if (result.status === 'valid') {
+    const remaining = getRemainingDays(result.data.expiresAt);
+    return { status: 'valid', data: result.data, remainingDays: remaining, deviceId: getDeviceId() };
+  }
+  return { status: result.status, reason: result.reason, deviceId: getDeviceId(), data: result.data };
+});
+
+/** Activate a license key */
+ipcMain.handle('license:activate', async (event, key) => {
+  try {
+    const licenseData = await activateLicense(key);
+    const remaining = getRemainingDays(licenseData.expiresAt);
+    return { success: true, data: licenseData, remainingDays: remaining };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+/** Get current license info */
+ipcMain.handle('license:info', async () => {
+  const result = loadLicenseLocal();
+  if (!result || result.status === 'not_activated') return null;
+  if (result.status === 'valid') {
+    return { ...result.data, remainingDays: getRemainingDays(result.data.expiresAt) };
+  }
+  return null;
+});
+
+/** Get device ID */
+ipcMain.handle('license:deviceId', async () => getDeviceId());
+
+// ─── Admin IPC Handlers ────────────────────────────────────────────────────────
+
+async function fetchGistWithToken(token) {
+  return new Promise((resolve, reject) => {
+    if (!licenseConfig.GIST_ID || licenseConfig.GIST_ID === 'ISI_GIST_ID_DISINI') {
+      return reject(new Error('GIST_ID belum dikonfigurasi di electron/license-config.js'));
+    }
+    const options = {
+      hostname: 'api.github.com',
+      path: `/gists/${licenseConfig.GIST_ID}`,
+      method: 'GET',
+      headers: {
+        'User-Agent': 'VidMix/2.0',
+        'Authorization': `token ${token}`,
+        'Accept': 'application/vnd.github.v3+json',
+        'Cache-Control': 'no-cache'
+      }
+    };
+    const req = https.request(options, (res) => {
+      let raw = '';
+      res.on('data', c => raw += c);
+      res.on('end', () => {
+        if (res.statusCode !== 200) return reject(new Error(`GitHub API Error: ${res.statusCode}`));
+        try { resolve(JSON.parse(raw)); } catch(e) { reject(new Error('Invalid response')); }
+      });
+    });
+    req.on('error', (e) => reject(new Error(e.message)));
+    req.end();
+  });
+}
+
+async function updateGistWithToken(token, db) {
+  return new Promise((resolve, reject) => {
+    const data = JSON.stringify({
+      files: {
+        [licenseConfig.GIST_FILENAME]: {
+          content: JSON.stringify(db, null, 2)
+        }
+      }
+    });
+    const options = {
+      hostname: 'api.github.com',
+      path: `/gists/${licenseConfig.GIST_ID}`,
+      method: 'PATCH',
+      headers: {
+        'User-Agent': 'VidMix/2.0',
+        'Authorization': `token ${token}`,
+        'Accept': 'application/vnd.github.v3+json',
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(data)
+      }
+    };
+    const req = https.request(options, (res) => {
+      let raw = '';
+      res.on('data', c => raw += c);
+      res.on('end', () => {
+        if (res.statusCode !== 200) return reject(new Error(`GitHub API Error: ${res.statusCode}`));
+        resolve(true);
+      });
+    });
+    req.on('error', (e) => reject(new Error(e.message)));
+    req.write(data);
+    req.end();
+  });
+}
+
+ipcMain.handle('admin:verifyToken', async (event, token) => {
+  try {
+    await fetchGistWithToken(token);
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+ipcMain.handle('admin:listKeys', async (event, token) => {
+  try {
+    const gist = await fetchGistWithToken(token);
+    const content = gist.files[licenseConfig.GIST_FILENAME]?.content;
+    if (!content) throw new Error('File DB tidak ditemukan di Gist');
+    const db = JSON.parse(content);
+    return { success: true, licenses: db.licenses || {} };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+ipcMain.handle('admin:generateKey', async (event, { token, type, deviceId }) => {
+  try {
+    const gist = await fetchGistWithToken(token);
+    const content = gist.files[licenseConfig.GIST_FILENAME]?.content;
+    const db = JSON.parse(content);
+    
+    const typeCode = type === 'lifetime' ? 'LT' : type.toUpperCase();
+    const randomBytes = crypto.randomBytes(6).toString('hex').toUpperCase();
+    const seg1 = randomBytes.slice(0, 4);
+    const seg2 = randomBytes.slice(4, 8);
+    const checksum = crypto.createHash('md5').update(`${typeCode}-${seg1}-${seg2}`).digest('hex').slice(0, 4).toUpperCase();
+    const key = `VIDMIX-${typeCode}-${seg1}-${seg2}-${checksum}`;
+    
+    db.licenses[key] = {
+      type,
+      label: LICENSE_TYPES[type]?.label || type,
+      issuedAt: new Date().toISOString().split('T')[0],
+      activatedBy: null,
+      activatedAt: null,
+      deviceId: deviceId ? deviceId.trim() : null,
+      expiresAt: null
+    };
+    
+    await updateGistWithToken(token, db);
+    return { success: true, key };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+ipcMain.handle('admin:revokeKey', async (event, { token, key }) => {
+  try {
+    const gist = await fetchGistWithToken(token);
+    const content = gist.files[licenseConfig.GIST_FILENAME]?.content;
+    const db = JSON.parse(content);
+    
+    if (db.licenses[key]) {
+      delete db.licenses[key];
+      await updateGistWithToken(token, db);
+      return { success: true };
+    }
+    throw new Error('Key tidak ditemukan');
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
 });
