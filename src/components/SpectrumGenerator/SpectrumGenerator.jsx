@@ -1,12 +1,85 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Music, Play, Square, Download, Settings, Image as ImageIcon } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { Music, Play, Square, Download, Settings, Image as ImageIcon, FolderOpen } from 'lucide-react';
+import { showToast, playLoudSuccessSound } from '../../utils/toast-helper';
+
+import { RefreshCw, CheckCircle2 } from 'lucide-react';
+
+function ExportProcessingModal({ progress, stage }) {
+  return (
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-6">
+      <div className="bg-[#FFE500] border-4 border-black p-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] max-w-xl w-full transform animate-in zoom-in-95 duration-200">
+        <h2 className="text-3xl font-black mb-4 flex items-center gap-3">
+          <RefreshCw className="animate-spin w-8 h-8" />
+          SEDANG MERENDER...
+        </h2>
+        <p className="font-bold text-sm mb-6 border-l-4 border-black pl-3 py-1 bg-purple-400">
+          Proses FFmpeg sedang berjalan. Proses ini mungkin memakan waktu agak lama. Mohon jangan menutup jendela ini.
+        </p>
+        
+        <div className="border-4 border-black bg-yellow-400 h-14 w-full relative overflow-hidden shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+          <div 
+            className="absolute top-0 left-0 h-full bg-[#00FF55] border-r-4 border-black transition-all duration-300"
+            style={{ width: `${progress}%` }}
+          />
+          <div className="absolute inset-0 flex items-center justify-center font-black text-xl z-10 mix-blend-difference text-white">
+            {progress > 0 ? `SEDANG MEMPROSES... ${Math.round(progress)}%` : 'MENYIAPKAN RENDER...'}
+          </div>
+        </div>
+        
+        <div className="mt-6 flex justify-between items-center font-black bg-black text-white px-4 py-2">
+          <span>STATUS: PROCESSING</span>
+          <span>{stage}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ExportSuccessModal({ onOpenFolder, onClose, lastOutputFolder }) {
+  return (
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-6">
+      <div className="bg-[#00FF55] border-4 border-black p-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] max-w-xl w-full transform animate-in zoom-in-95 duration-200 relative">
+        <button 
+          onClick={onClose}
+          className="absolute top-4 right-4 bg-blue-400 border-2 border-black w-8 h-8 flex items-center justify-center font-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5"
+        >
+          X
+        </button>
+        <h2 className="text-4xl font-black mb-4 flex items-center gap-3">
+          <CheckCircle2 className="w-10 h-10" />
+          BERHASIL!
+        </h2>
+        <p className="font-bold text-base mb-6 border-l-4 border-black pl-3 py-2 bg-green-400">
+          Spectrum audio Anda telah selesai dirender dengan aman ke dalam folder!
+        </p>
+        
+        <button
+          onClick={() => {
+            if (lastOutputFolder) onOpenFolder(lastOutputFolder);
+            onClose();
+          }}
+          className="w-full py-4 font-black text-lg border-4 border-black bg-[#FFE500] hover:bg-[#FFD700] shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-x-1 active:translate-y-1 transition-all flex items-center justify-center gap-2"
+        >
+          <FolderOpen className="w-6 h-6" />
+          BUKA FOLDER OUTPUT
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default function SpectrumGenerator() {
   const [audioPath, setAudioPath] = useState('');
   const [audioName, setAudioName] = useState('');
   const [isPlaying, setIsPlaying] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState(0);
+  const [exportStage, setExportStage] = useState('Menyiapkan...');
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [lastSuccessFolder, setLastSuccessFolder] = useState('');
+  const progressIntervalRef = useRef(null);
+  
+  const [outputDir, setOutputDir] = useState(() => localStorage.getItem('vidmix_spectrumOutputDir') || '');
   
   const [shape, setShape] = useState('linear');
   const [colorMode, setColorMode] = useState('solid');
@@ -14,6 +87,9 @@ export default function SpectrumGenerator() {
   const [particles, setParticles] = useState(false);
   const [alignment, setAlignment] = useState('left');
   const [centerImagePath, setCenterImagePath] = useState('');
+  const [roundedBars, setRoundedBars] = useState(false);
+  const [gradientStart, setGradientStart] = useState('#00FFFF');
+  const [gradientEnd, setGradientEnd] = useState('#9D00FF');
   
   // Advanced Settings
   const [smoothing, setSmoothing] = useState(0.8);
@@ -30,6 +106,7 @@ export default function SpectrumGenerator() {
   const animationRef = useRef(null);
   const centerImgObjRef = useRef(null);
   const audioElementRef = useRef(null);
+  const forceDrawRef = useRef(null);
   
   // Refs to allow dynamic reading inside requestAnimationFrame without restart
   const shapeRef = useRef(shape);
@@ -43,18 +120,58 @@ export default function SpectrumGenerator() {
   const heightScaleRef = useRef(heightScale);
   const barThicknessRef = useRef(barThickness);
   const barGapRef = useRef(barGap);
+  const gradientStartRef = useRef(gradientStart);
+  const gradientEndRef = useRef(gradientEnd);
+  const roundedBarsRef = useRef(roundedBars);
   
-  useEffect(() => { shapeRef.current = shape; }, [shape]);
-  useEffect(() => { colorModeRef.current = colorMode; }, [colorMode]);
-  useEffect(() => { solidColorRef.current = solidColor; }, [solidColor]);
-  useEffect(() => { particlesRef.current = particles; }, [particles]);
-  useEffect(() => { alignmentRef.current = alignment; }, [alignment]);
-  useEffect(() => { smoothingRef.current = smoothing; }, [smoothing]);
-  useEffect(() => { minDecibelsRef.current = minDecibels; }, [minDecibels]);
-  useEffect(() => { maxDecibelsRef.current = maxDecibels; }, [maxDecibels]);
-  useEffect(() => { heightScaleRef.current = heightScale; }, [heightScale]);
-  useEffect(() => { barThicknessRef.current = barThickness; }, [barThickness]);
-  useEffect(() => { barGapRef.current = barGap; }, [barGap]);
+  useEffect(() => {
+    shapeRef.current = shape;
+    colorModeRef.current = colorMode;
+    solidColorRef.current = solidColor;
+    particlesRef.current = particles;
+    alignmentRef.current = alignment;
+    smoothingRef.current = smoothing;
+    minDecibelsRef.current = minDecibels;
+    maxDecibelsRef.current = maxDecibels;
+    heightScaleRef.current = heightScale;
+    barThicknessRef.current = barThickness;
+    barGapRef.current = barGap;
+    gradientStartRef.current = gradientStart;
+    gradientEndRef.current = gradientEnd;
+    roundedBarsRef.current = roundedBars;
+  }, [shape, colorMode, solidColor, particles, alignment, smoothing, minDecibels, maxDecibels, heightScale, barThickness, barGap, gradientStart, gradientEnd, roundedBars]);
+
+  useEffect(() => {
+    localStorage.setItem('vidmix_spectrumOutputDir', outputDir);
+  }, [outputDir]);
+
+  useEffect(() => {
+    if (typeof window.api?.onExportProgress === 'function') {
+      const unsubscribe = window.api.onExportProgress(({ percent, stage }) => {
+        if (typeof percent === 'number') setExportProgress(percent);
+        if (stage) setExportStage(stage);
+      });
+      return () => { if (typeof unsubscribe === 'function') unsubscribe(); };
+    }
+  }, []);
+
+  const startSimulatedProgress = (estimatedMs) => {
+    const start = Date.now();
+    progressIntervalRef.current = setInterval(() => {
+      const elapsed = Date.now() - start;
+      const pct = Math.min(95, (elapsed / estimatedMs) * 100);
+      setExportProgress(pct);
+      if (pct > 30 && pct <= 60) setExportStage('Merender frame...');
+      else if (pct > 60) setExportStage('Menyusun video...');
+    }, 150);
+  };
+
+  const stopSimulatedProgress = () => {
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
+    }
+  };
 
   // Dynamically change settings if they change while playing
   useEffect(() => {
@@ -98,10 +215,22 @@ export default function SpectrumGenerator() {
       if (result && result.length > 0) {
         setAudioPath(result[0]);
         setAudioName(result[0].split(/[\\/]/).pop());
-        toast.success('Lagu terpilih!');
+        showToast('Lagu terpilih!', 'success');
       }
     } catch (e) {
-      toast.error('Gagal memilih lagu');
+      showToast('Gagal memilih lagu', 'error');
+    }
+  };
+
+  const selectOutputFolder = async () => {
+    try {
+      const result = await window.api.selectFolder('output');
+      if (result) {
+        setOutputDir(result);
+        showToast('Folder Output diset!', 'success');
+      }
+    } catch (e) {
+      showToast('Gagal memilih folder', 'error');
     }
   };
 
@@ -110,11 +239,21 @@ export default function SpectrumGenerator() {
       const result = await window.api.selectMediaFile();
       if (result && result.mediaType === 'photo') {
         setCenterImagePath(result.path);
-        toast.success('Foto terpilih!');
+        showToast('Foto terpilih!', 'success');
       }
     } catch (e) {
-      toast.error('Gagal memilih foto');
+      showToast('Gagal memilih foto', 'error');
     }
+  };
+
+  const applyPreset = (smooth, min, max, height, thick, gap) => {
+    setSmoothing(smooth);
+    setMinDecibels(min);
+    setMaxDecibels(max);
+    setHeightScale(height);
+    setBarThickness(thick);
+    setBarGap(gap);
+    showToast('Preset pengaturan diterapkan!', 'success');
   };
 
   const initAudio = async () => {
@@ -154,7 +293,7 @@ export default function SpectrumGenerator() {
       drawSpectrum();
     } catch (e) {
       console.error(e);
-      toast.error('Gagal memutar lagu');
+      showToast('Gagal memutar lagu', 'error');
     }
   };
 
@@ -181,8 +320,29 @@ export default function SpectrumGenerator() {
     const bufferLength = analyserRef.current.frequencyBinCount;
     const dataArray = new Uint8Array(bufferLength);
     
-    const draw = () => {
-      animationRef.current = requestAnimationFrame(draw);
+    const draw = (force = false) => {
+      const drawBar = (ctx, x, y, w, h) => {
+        ctx.beginPath();
+        if (roundedBarsRef.current) {
+          ctx.roundRect(x, y, w, h, Math.min(w/2, h/2, 5));
+        } else {
+          ctx.rect(x, y, w, h);
+        }
+        ctx.fill();
+        ctx.stroke();
+      };
+      
+      if (!force) {
+        animationRef.current = requestAnimationFrame(() => draw(false));
+      }
+      
+      // Jika audio context suspended → resume dan SKIP frame ini
+      // (jangan clearRect, biarkan canvas tetap tampil frame terakhir)
+      if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+        audioContextRef.current.resume();
+        return; // skip render frame ini, tunggu sampai context aktif
+      }
+      if (!analyserRef.current) return;
       
       const currentShape = shapeRef.current;
       const currentColorMode = colorModeRef.current;
@@ -198,9 +358,18 @@ export default function SpectrumGenerator() {
         analyserRef.current.getByteFrequencyData(dataArray);
       }
       
-      // Neo-brutalism clear
-      ctx.fillStyle = '#000000';
-      ctx.fillRect(0, 0, width, height);
+      // Cek apakah data benar-benar kosong semua (context baru resume / belum ada sinyal)
+      // Untuk frequency: nilai 0 = diam. Untuk waveform: nilai 128 = diam.
+      // Jika ya, skip clear supaya canvas tidak blank
+      const hasSignal = currentShape === 'waveform'
+        ? dataArray.some(v => v !== 128)
+        : dataArray.some(v => v > 0);
+      if (!hasSignal) return;
+
+      
+      // Transparent clear (no background)
+      ctx.clearRect(0, 0, width, height);
+
       
       // Update & Draw Particles if enabled
       if (currentParticles) {
@@ -222,7 +391,7 @@ export default function SpectrumGenerator() {
               vy: Math.sin(angle) * speed,
               life: 1.0,
               size: 2 + Math.random() * 6,
-              color: getColorForIndex(Math.random() * bufferLength, bufferLength, currentColorMode, solidColorRef.current)
+              color: getColorForIndex(Math.random() * bufferLength, bufferLength, currentColorMode, solidColorRef.current, gradientStartRef.current, gradientEndRef.current)
             });
           }
         }
@@ -321,11 +490,8 @@ export default function SpectrumGenerator() {
             ctx.save();
             ctx.translate(cx, cy);
             ctx.rotate(angle);
-            ctx.fillStyle = getColorForIndex(i, validBins, currentColorMode, solidColorRef.current);
-            ctx.fillRect(radius, -2, barHeight, 4 * currentBarThickness);
-            ctx.strokeStyle = '#000';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(radius, -2, barHeight, 4 * currentBarThickness);
+            ctx.fillStyle = getColorForIndex(i, validBins, currentColorMode, solidColorRef.current, gradientStartRef.current, gradientEndRef.current);
+            ctx.strokeStyle = '#000000'; ctx.lineWidth = 1; drawBar(ctx, radius, -2, barHeight, 4 * currentBarThickness);
             ctx.restore();
             barIndex++;
           }
@@ -339,11 +505,8 @@ export default function SpectrumGenerator() {
             ctx.save();
             ctx.translate(cx, cy);
             ctx.rotate(angle);
-            ctx.fillStyle = getColorForIndex(i, validBins, currentColorMode, solidColorRef.current);
-            ctx.fillRect(radius, -2, barHeight, 4 * currentBarThickness);
-            ctx.strokeStyle = '#000000';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(radius, -2, barHeight, 4 * currentBarThickness);
+            ctx.fillStyle = getColorForIndex(i, validBins, currentColorMode, solidColorRef.current, gradientStartRef.current, gradientEndRef.current);
+            ctx.strokeStyle = '#000000'; ctx.lineWidth = 1; drawBar(ctx, radius, -2, barHeight, 4 * currentBarThickness);
             ctx.restore();
             barIndex++;
           }
@@ -359,11 +522,8 @@ export default function SpectrumGenerator() {
             ctx.save();
             ctx.translate(cx, cy);
             ctx.rotate(angle);
-            ctx.fillStyle = getColorForIndex(i, validBins, currentColorMode, solidColorRef.current);
-            ctx.fillRect(radius, -2, barHeight, 4 * currentBarThickness);
-            ctx.strokeStyle = '#000000';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(radius, -2, barHeight, 4 * currentBarThickness);
+            ctx.fillStyle = getColorForIndex(i, validBins, currentColorMode, solidColorRef.current, gradientStartRef.current, gradientEndRef.current);
+            ctx.strokeStyle = '#000000'; ctx.lineWidth = 1; drawBar(ctx, radius, -2, barHeight, 4 * currentBarThickness);
             ctx.restore();
           }
         }
@@ -381,14 +541,11 @@ export default function SpectrumGenerator() {
           let barIndex = 0;
           for (let i = 0; i < validBins && barIndex < totalBars / 2; i += step) {
             const barHeight = Math.max(2, (dataArray[i] / 255) * (height / 2) * currentHeightScale);
-            ctx.fillStyle = getColorForIndex(i, validBins, currentColorMode, solidColorRef.current);
+            ctx.fillStyle = getColorForIndex(i, validBins, currentColorMode, solidColorRef.current, gradientStartRef.current, gradientEndRef.current);
             
             const offset = (barIndex * (barWidth + currentBarGap));
             // Right Side
-            ctx.fillRect(cx + offset, cy - barHeight, barWidth, barHeight * 2);
-            ctx.strokeStyle = '#000';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(cx + offset, cy - barHeight, barWidth, barHeight * 2);
+            ctx.strokeStyle = '#000000'; ctx.lineWidth = 1; drawBar(ctx, cx + offset, cy - barHeight, barWidth, barHeight * 2);
             
             // Left Side
             if (barIndex > 0) {
@@ -402,13 +559,10 @@ export default function SpectrumGenerator() {
           let barIndex = 0;
           for(let i = 0; i < validBins && barIndex < totalBars; i += step) {
             const barHeight = Math.max(2, (dataArray[i] / 255) * (height / 2) * currentHeightScale);
-            ctx.fillStyle = getColorForIndex(i, validBins, currentColorMode, solidColorRef.current);
+            ctx.fillStyle = getColorForIndex(i, validBins, currentColorMode, solidColorRef.current, gradientStartRef.current, gradientEndRef.current);
             const drawX = currentAlignment === 'right' ? x - barWidth : x;
             
-            ctx.fillRect(drawX, cy - barHeight, barWidth, barHeight * 2);
-            ctx.strokeStyle = '#000000';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(drawX, cy - barHeight, barWidth, barHeight * 2);
+            ctx.strokeStyle = '#000000'; ctx.lineWidth = 1; drawBar(ctx, drawX, cy - barHeight, barWidth, barHeight * 2);
             
             if (currentAlignment === 'right') x -= barWidth + currentBarGap;
             else x += barWidth + currentBarGap;
@@ -426,7 +580,7 @@ export default function SpectrumGenerator() {
           let dotIndex = 0;
           for (let i = 0; i < validBins; i += 2) {
             const barHeight = (dataArray[i] / 255) * height * currentHeightScale;
-            ctx.fillStyle = getColorForIndex(i, validBins, currentColorMode, solidColorRef.current);
+            ctx.fillStyle = getColorForIndex(i, validBins, currentColorMode, solidColorRef.current, gradientStartRef.current, gradientEndRef.current);
             const offset = dotIndex * (barWidth + currentBarGap + 2);
             // Right
             ctx.beginPath();
@@ -444,7 +598,7 @@ export default function SpectrumGenerator() {
           let x = currentAlignment === 'right' ? width : 0;
           for(let i = 0; i < validBins; i+=2) {
             const barHeight = (dataArray[i] / 255) * height * currentHeightScale;
-            ctx.fillStyle = getColorForIndex(i, validBins, currentColorMode, solidColorRef.current);
+            ctx.fillStyle = getColorForIndex(i, validBins, currentColorMode, solidColorRef.current, gradientStartRef.current, gradientEndRef.current);
             const drawX = currentAlignment === 'right' ? x - barWidth/2 - 10 : x;
             ctx.beginPath();
             ctx.arc(drawX, height - barHeight - 10, barWidth/2, 0, Math.PI*2);
@@ -465,13 +619,11 @@ export default function SpectrumGenerator() {
           let barIndex = 0;
           for (let i = 0; i < validBins; i++) {
             const barHeight = Math.max(2, (dataArray[i] / 255) * height * currentHeightScale);
-            ctx.fillStyle = getColorForIndex(i, validBins, currentColorMode, solidColorRef.current);
+            ctx.fillStyle = getColorForIndex(i, validBins, currentColorMode, solidColorRef.current, gradientStartRef.current, gradientEndRef.current);
             const offset = barIndex * (barWidth + currentBarGap);
             
             // Right
-            ctx.fillRect(cx + offset, height - barHeight, barWidth, barHeight);
-            ctx.strokeStyle = '#000000'; ctx.lineWidth = 1;
-            ctx.strokeRect(cx + offset, height - barHeight, barWidth, barHeight);
+            ctx.strokeStyle = '#000000'; ctx.lineWidth = 1; drawBar(ctx, cx + offset, height - barHeight, barWidth, barHeight);
             
             // Left
             if (barIndex > 0) {
@@ -484,12 +636,9 @@ export default function SpectrumGenerator() {
           let x = currentAlignment === 'right' ? width : 0;
           for(let i = 0; i < validBins; i++) {
             const barHeight = Math.max(2, (dataArray[i] / 255) * height * currentHeightScale);
-            ctx.fillStyle = getColorForIndex(i, validBins, currentColorMode, solidColorRef.current);
+            ctx.fillStyle = getColorForIndex(i, validBins, currentColorMode, solidColorRef.current, gradientStartRef.current, gradientEndRef.current);
             const drawX = currentAlignment === 'right' ? x - barWidth : x;
-            ctx.fillRect(drawX, height - barHeight, barWidth, barHeight);
-            ctx.strokeStyle = '#000000';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(drawX, height - barHeight, barWidth, barHeight);
+            ctx.strokeStyle = '#000000'; ctx.lineWidth = 1; drawBar(ctx, drawX, height - barHeight, barWidth, barHeight);
             
             if (currentAlignment === 'right') x -= barWidth + currentBarGap;
             else x += barWidth + currentBarGap;
@@ -498,10 +647,20 @@ export default function SpectrumGenerator() {
       }
     };
     
+    forceDrawRef.current = draw;
     draw();
   };
 
-  const getColorForIndex = (index, total, mode, solidCol) => {
+  const hexToRgb = (hex) => {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? {
+      r: parseInt(result[1], 16),
+      g: parseInt(result[2], 16),
+      b: parseInt(result[3], 16)
+    } : {r: 0, g: 255, b: 255};
+  };
+
+  const getColorForIndex = (index, total, mode, solidCol, gradStart = '#00FFFF', gradEnd = '#9D00FF') => {
     if (mode === 'rgb_running') {
       return `hsl(${(index / total) * 360 + (Date.now() / 10 % 360)}, 100%, 50%)`;
     } else if (mode === 'rgb_beat') {
@@ -509,62 +668,166 @@ export default function SpectrumGenerator() {
     } else if (mode === 'fire') {
       const ratio = index / total;
       return `hsl(${60 - ratio * 60}, 100%, 50%)`;
-    } else if (mode === 'gradient_cyan_purple') {
+    } else if (mode === 'gradient_cyan_purple' || mode === 'gradient') {
       const ratio = index / total;
-      return `hsl(${180 + ratio * 100}, 100%, 50%)`;
+      const c1 = hexToRgb(gradStart);
+      const c2 = hexToRgb(gradEnd);
+      const r = Math.floor(c1.r + ratio * (c2.r - c1.r));
+      const g = Math.floor(c1.g + ratio * (c2.g - c1.g));
+      const b = Math.floor(c1.b + ratio * (c2.b - c1.b));
+      return `rgb(${r}, ${g}, ${b})`;
     }
     return solidCol || '#00FF55'; 
   };
 
   const exportGif = async () => {
     if (!audioPath) {
-      toast.error('Pilih lagu dulu sebelum export!');
+      showToast('Pilih lagu dulu sebelum export!', 'error');
       return;
     }
-    
+
+    // Determine output path
+    let outputPath = '';
+    if (outputDir) {
+      const cleanAudioName = audioName ? audioName.replace(/\.[^/.]+$/, "") : "Audio";
+      const safeName = cleanAudioName.replace(/[<>:"/\\|?*]/g, ' ').trim();
+      const shortCode = Date.now().toString().slice(-4);
+      outputPath = `${outputDir}\\Spectrum - ${safeName} - ${shortCode}.mp4`;
+    } else {
+      outputPath = await window.api.selectOutputMov();
+      if (!outputPath) return;
+    }
+
     setIsExporting(true);
-    toast.success('Mulai merender GIF (Landscape)... Tunggu sebentar.', { duration: 5000 });
-    
+    setExportProgress(0);
+    setExportStage('Menyiapkan...');
+
     try {
-      const outputPath = await window.api.selectOutputFile();
-      if (!outputPath) {
-        setIsExporting(false);
-        return;
-      }
-      
-      await window.api.exportSpectrumGif({
-        audioPath,
-        outputPath,
-        resolution: '1280x720',
-        backgroundColor: '#000000',
-        shape,
-        colorMode,
-        solidColor,
-        particles,
-        alignment,
-        centerImagePath,
-        advanced: {
-          smoothing,
-          minDecibels,
-          maxDecibels,
-          heightScale,
-          barThickness,
-          barGap
-        }
+      // Stop any existing playback first
+      stopAudio();
+      await new Promise(r => setTimeout(r, 200));
+
+      // Re-init audio context + analyser
+      if (audioContextRef.current) await audioContextRef.current.close();
+      audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      analyserRef.current = audioContextRef.current.createAnalyser();
+      analyserRef.current.fftSize = shape === 'waveform' ? 2048 : 256;
+      analyserRef.current.smoothingTimeConstant = smoothingRef.current;
+      analyserRef.current.minDecibels = minDecibelsRef.current;
+      analyserRef.current.maxDecibels = maxDecibelsRef.current;
+
+      const audioEl = new Audio(`file://${audioPath}`);
+      audioElementRef.current = audioEl;
+      audioEl.crossOrigin = 'anonymous';
+
+      // Wait for metadata so we can read duration
+      await new Promise(resolve => {
+        if (audioEl.readyState >= 1) resolve();
+        else audioEl.addEventListener('loadedmetadata', resolve, {once: true});
       });
-      
-      toast.success('Berhasil mengekspor GIF!');
+
+      sourceRef.current = audioContextRef.current.createMediaElementSource(audioEl);
+      sourceRef.current.connect(analyserRef.current);
+      // NOT connecting to destination — silent during export
+
+      // Start canvas animation
+      particlesArrayRef.current = [];
+      drawSpectrum();
+
+      // Wait a few frames for canvas to warm up
+      await new Promise(r => setTimeout(r, 100));
+
+      // Seek audio to 10 seconds (skip fade-in), fallback to 0 if song is very short
+      audioEl.currentTime = Math.min(10, Math.max(0, audioEl.duration - 2) || 0);
+
+      // Start audio (drives the analyser)
+      await audioEl.play();
+
+      // Capture PNG frames at 24fps for 10 seconds = 240 frames
+      const FPS = 24;
+      const DURATION_S = 10;
+      const totalFrames = FPS * DURATION_S;
+      const frameInterval = Math.round(1000 / FPS);
+      const frames = [];
+      const canvas = canvasRef.current;
+
+      setExportStage(`Merekam frame canvas... (0/${totalFrames})`);
+
+      await new Promise((resolve) => {
+        let captured = 0;
+        const captureTimer = setInterval(() => {
+          if (captured >= totalFrames || audioEl.ended) {
+            clearInterval(captureTimer);
+            resolve();
+            return;
+          }
+          // Force draw if requestAnimationFrame is throttled
+          if (forceDrawRef.current) forceDrawRef.current(true);
+          
+          // Capture current canvas as PNG base64 (preserves alpha)
+          const dataUrl = canvas.toDataURL('image/png');
+          frames.push(dataUrl.split(',')[1]); // base64 only
+          captured++;
+
+          const pct = Math.min(45, (captured / totalFrames) * 45);
+          setExportProgress(pct);
+          setExportStage(`Merekam frame ${captured}/${totalFrames}...`);
+        }, frameInterval);
+      });
+
+      // Stop audio + canvas
+      audioEl.pause();
+      if (animationRef.current) cancelAnimationFrame(animationRef.current);
+      if (audioContextRef.current) {
+        audioContextRef.current.close().catch(() => {});
+        audioContextRef.current = null;
+      }
+
+      setExportStage('Mengirim frame ke FFmpeg...');
+      setExportProgress(50);
+
+      // Subscribe to FFmpeg progress
+      if (window.api?.onSpectrumExportProgress) {
+        window.api.onSpectrumExportProgress((data) => {
+          if (data.percent) setExportProgress(50 + (data.percent / 100) * 48);
+          if (data.timemark) setExportStage(`Mengenkode: ${data.timemark}`);
+        });
+      }
+
+      // Encode frames → transparent MOV via FFmpeg ProRes 4444
+      await window.api.encodeFramesToMov(frames, FPS, outputPath);
+
+      if (window.api?.removeSpectrumExportProgress) window.api.removeSpectrumExportProgress();
+
+      setExportProgress(100);
+      setExportStage('Selesai!');
+      playLoudSuccessSound();
+      setIsSuccess(true);
+      setLastSuccessFolder(outputDir);
+      setIsPlaying(false);
+
     } catch (e) {
       console.error(e);
-      toast.error('Gagal mengekspor: ' + e.message);
+      if (window.api?.removeSpectrumExportProgress) window.api.removeSpectrumExportProgress();
+      showToast('Gagal mengekspor: ' + (e.message || e), 'error');
     } finally {
-      setIsExporting(false);
+      setTimeout(() => setIsExporting(false), 500);
     }
   };
 
+
   return (
-    <div className="bg-white border-4 border-black p-4 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] w-full h-[85vh] flex flex-col">
-      <div className="flex justify-between items-center mb-4 border-b-4 border-black pb-2 shrink-0">
+    <>
+      {isExporting && <ExportProcessingModal progress={exportProgress} stage={exportStage} />}
+      {isSuccess && !isExporting && (
+        <ExportSuccessModal 
+          lastOutputFolder={lastSuccessFolder}
+          onClose={() => setIsSuccess(false)}
+          onOpenFolder={(folder) => window.api.openFolder(folder)}
+        />
+      )}
+      <div className="bg-[#B28DFF] border-4 border-black p-4 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] w-full h-[85vh] flex flex-col">
+        <div className="flex justify-between items-center mb-4 border-b-4 border-black pb-2 shrink-0">
         <div>
           <h1 className="text-2xl md:text-3xl font-black uppercase tracking-tight">Audio Spectrum GIF Maker</h1>
           <p className="font-bold text-xs text-zinc-500">Ubah lagumu menjadi visual animasi neon yang keren (Mode Widescreen 16:9).</p>
@@ -577,7 +840,9 @@ export default function SpectrumGenerator() {
         <div className="w-full md:w-80 lg:w-96 flex flex-col gap-4 overflow-y-auto pr-2 pb-2">
           
           <div className="bg-yellow-300 border-4 border-black p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] shrink-0">
-            <h2 className="font-black text-lg mb-2">1. Audio</h2>
+            <h2 className="font-black text-lg mb-2">1. Sumber & Tujuan</h2>
+            
+            <label className="text-[10px] font-black uppercase block mb-1">Pilih Lagu</label>
             <button 
               onClick={selectAudio}
               className="w-full bg-black text-white font-black py-2 text-sm border-4 border-black hover:bg-zinc-800 active:translate-x-1 active:translate-y-1 transition-all"
@@ -585,10 +850,17 @@ export default function SpectrumGenerator() {
               BROWSE FILE (.mp3 / .wav)
             </button>
             {audioName && (
-              <div className="mt-2 p-2 bg-white border-2 border-black font-bold text-xs truncate">
+              <div className="mt-2 p-2 bg-[#00FF55] border-2 border-black font-bold text-xs truncate">
                 🎵 {audioName}
               </div>
             )}
+
+            <label className="text-[10px] font-black uppercase block mb-1 mt-3">Folder Output</label>
+            <div className="flex gap-2">
+              <input type="text" readOnly value={outputDir || 'Belum dipilih...'} className="w-full bg-white border-2 border-black px-2 py-1 text-xs truncate font-bold" placeholder="Pilih folder..." />
+              <button onClick={selectOutputFolder} className="bg-[#00F0FF] border-2 border-black px-3 font-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 text-xs">Pilih</button>
+            </div>
+            <p className="text-[9px] font-bold text-zinc-600 mt-1">*Jika kosong, akan ditanya saat klik Export</p>
           </div>
 
           <div className="bg-[#00F0FF] border-4 border-black p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] shrink-0">
@@ -597,7 +869,7 @@ export default function SpectrumGenerator() {
               2. Settings
             </h2>
             
-            <div className="bg-white border-4 border-black p-3 space-y-4">
+            <div className="bg-[#FFE500] border-4 border-black p-3 space-y-4">
               <div>
                 <label className="text-[10px] font-black uppercase block mb-1">Bentuk (Shape)</label>
                 <div className="grid grid-cols-2 lg:grid-cols-3 gap-1">
@@ -605,7 +877,7 @@ export default function SpectrumGenerator() {
                     <button
                       key={s}
                       onClick={() => setShape(s)}
-                      className={`py-1 text-[10px] border-2 border-black font-bold active:translate-x-0.5 active:translate-y-0.5 ${shape === s ? 'bg-[#00FF55]' : 'bg-zinc-100 hover:bg-zinc-200'}`}
+                      className={`py-1 text-[10px] border-2 border-black font-bold active:translate-x-0.5 active:translate-y-0.5 ${shape === s ? 'bg-[#00FF55]' : 'bg-[#FF90E8] hover:bg-[#E581D0]'}`}
                     >
                       {s.toUpperCase()}
                     </button>
@@ -618,7 +890,7 @@ export default function SpectrumGenerator() {
                   <label className="text-[10px] font-black uppercase block mb-1">Foto Tengah Lingkaran</label>
                   <button
                     onClick={selectCenterImage}
-                    className="w-full py-1 text-xs flex items-center justify-center gap-1 border-2 border-black font-bold bg-white hover:bg-zinc-100 active:translate-x-0.5 active:translate-y-0.5"
+                    className="w-full py-1 text-xs flex items-center justify-center gap-1 border-2 border-black font-bold bg-[#FFE500] hover:bg-[#E5CD00] active:translate-x-0.5 active:translate-y-0.5"
                   >
                     <ImageIcon className="w-3 h-3" /> PILIH FOTO
                   </button>
@@ -632,13 +904,13 @@ export default function SpectrumGenerator() {
                     {id: 'solid', label: 'SOLID COLOR'},
                     {id: 'rgb_running', label: 'RGB RUNNING'},
                     {id: 'rgb_beat', label: 'RGB BEAT'},
-                    {id: 'gradient_cyan_purple', label: 'GRADIENT'},
+                    {id: 'gradient', label: 'GRADIENT'},
                     {id: 'fire', label: 'FIRE LAVA'}
                   ].map(c => (
                     <button
                       key={c.id}
                       onClick={() => setColorMode(c.id)}
-                      className={`py-1 text-[10px] border-2 border-black font-bold active:translate-x-0.5 active:translate-y-0.5 ${colorMode === c.id ? 'bg-[#00FF55]' : 'bg-zinc-100 hover:bg-zinc-200'}`}
+                      className={`py-1 text-[10px] border-2 border-black font-bold active:translate-x-0.5 active:translate-y-0.5 ${colorMode === c.id ? 'bg-[#00FF55]' : 'bg-[#FF90E8] hover:bg-[#E581D0]'}`}
                     >
                       {c.label}
                     </button>
@@ -646,7 +918,7 @@ export default function SpectrumGenerator() {
                 </div>
                 
                 {colorMode === 'solid' && (
-                  <div className="flex items-center justify-between border-2 border-black p-1 bg-zinc-100">
+                  <div className="flex items-center justify-between border-2 border-black p-1 bg-white">
                     <span className="text-[10px] font-bold px-1">Pilih Warna Solid:</span>
                     <input 
                       type="color" 
@@ -656,12 +928,43 @@ export default function SpectrumGenerator() {
                     />
                   </div>
                 )}
+                {colorMode === 'gradient' && (
+                  <div className="flex flex-col gap-1 border-2 border-black p-1 bg-white">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold px-1">Warna Awal:</span>
+                      <input 
+                        type="color" 
+                        value={gradientStart}
+                        onChange={(e) => setGradientStart(e.target.value)}
+                        className="w-8 h-6 border border-black cursor-pointer"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold px-1">Warna Akhir:</span>
+                      <input 
+                        type="color" 
+                        value={gradientEnd}
+                        onChange={(e) => setGradientEnd(e.target.value)}
+                        className="w-8 h-6 border border-black cursor-pointer"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="pt-2 border-t-2 border-dashed border-black">
                 <label className="text-[10px] font-black uppercase block mb-1">Opsi Tambahan</label>
                 <div className="space-y-1">
-                  <label className="flex items-center gap-2 text-xs font-bold bg-zinc-100 border-2 border-black p-1 cursor-pointer hover:bg-zinc-200">
+                  <label className="flex items-center gap-2 text-xs font-bold bg-[#FFE500] hover:bg-[#E5CD00] border-2 border-black p-1 cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      checked={roundedBars}
+                      onChange={(e) => setRoundedBars(e.target.checked)}
+                      className="w-4 h-4 accent-[#00FF55] border-black"
+                    />
+                    UJUNG BAR MEMBULAT
+                  </label>
+                  <label className="flex items-center gap-2 text-xs font-bold bg-[#FFE500] hover:bg-[#E5CD00] border-2 border-black p-1 cursor-pointer">
                     <input 
                       type="checkbox" 
                       checked={particles}
@@ -671,7 +974,7 @@ export default function SpectrumGenerator() {
                     AKTIFKAN BEAT PARTIKEL
                   </label>
                   
-                  <div className="flex flex-col gap-1 bg-zinc-100 border-2 border-black p-2 mt-2">
+                  <div className="flex flex-col gap-1 bg-[#FF90E8] border-2 border-black p-2 mt-2 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
                     <span className="text-[10px] font-black uppercase">Arah Spektrum (Alignment):</span>
                     <label className="flex items-center gap-2 text-xs font-bold cursor-pointer">
                       <input 
@@ -706,6 +1009,28 @@ export default function SpectrumGenerator() {
                       />
                       Dari Tengah (Mirrored)
                     </label>
+                    <label className="flex items-center gap-2 text-xs font-bold cursor-pointer">
+                      <input 
+                        type="radio" 
+                        name="alignment"
+                        value="left_mirror"
+                        checked={alignment === 'left_mirror'}
+                        onChange={(e) => setAlignment(e.target.value)}
+                        className="w-4 h-4 accent-[#00FF55]"
+                      />
+                      Mirrored (Kiri)
+                    </label>
+                    <label className="flex items-center gap-2 text-xs font-bold cursor-pointer">
+                      <input 
+                        type="radio" 
+                        name="alignment"
+                        value="right_mirror"
+                        checked={alignment === 'right_mirror'}
+                        onChange={(e) => setAlignment(e.target.value)}
+                        className="w-4 h-4 accent-[#00FF55]"
+                      />
+                      Mirrored (Kanan)
+                    </label>
                   </div>
                 </div>
               </div>
@@ -733,15 +1058,24 @@ export default function SpectrumGenerator() {
             </div>
           </div>
           
-          <div className="bg-orange-400 border-4 border-black p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] shrink-0">
+          <div className="bg-[#FF6B00] border-4 border-black p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] shrink-0">
             <h2 className="font-black text-lg mb-2 flex items-center gap-2">
               <Settings className="w-5 h-5" />
-              3. Advanced (Rinci)
+              3. Advanced
             </h2>
-            <div className="bg-white border-4 border-black p-3 space-y-3">
+            <div className="bg-[#00FF55] border-4 border-black p-3 space-y-3">
+              <div className="mb-1 pb-3 border-b-2 border-dashed border-black">
+                <span className="text-[10px] font-black uppercase mb-2 block bg-[#FFE500] px-2 py-1 border-2 border-black w-fit">Preset Rekomendasi:</span>
+                <div className="grid grid-cols-4 gap-1">
+                <button onClick={() => applyPreset(0.8, -90, -10, 1.5, 1.2, 2)} className="py-1 text-[8px] font-black border-2 border-black bg-[#FF90E8] hover:bg-[#E581D0] active:translate-x-0.5 active:translate-y-0.5" title="Responsif & Bass-heavy">BASSY</button>
+                <button onClick={() => applyPreset(0.95, -100, 0, 0.8, 0.8, 4)} className="py-1 text-[8px] font-black border-2 border-black bg-[#00F0FF] hover:bg-[#00D0FF] active:translate-x-0.5 active:translate-y-0.5" title="Santai & Mulus">CHILL</button>
+                <button onClick={() => applyPreset(0.6, -80, -20, 1.2, 1.0, 1)} className="py-1 text-[8px] font-black border-2 border-black bg-[#FFE500] hover:bg-[#E5CD00] active:translate-x-0.5 active:translate-y-0.5" title="Sensitivitas Tinggi">DETAIL</button>
+                <button onClick={() => applyPreset(0.8, -90, -10, 1.0, 1.0, 2)} className="py-1 text-[8px] font-black border-2 border-black bg-zinc-100 hover:bg-zinc-200 active:translate-x-0.5 active:translate-y-0.5" title="Kembali ke awal">RESET</button>
+              </div>
+              </div>
               <div>
                 <label className="text-[10px] font-black uppercase flex justify-between">
-                  <span>Kehalusan (Smoothing)</span>
+                  <span>Smoothing</span>
                   <span>{smoothing.toFixed(2)}</span>
                 </label>
                 <input 
@@ -752,7 +1086,7 @@ export default function SpectrumGenerator() {
               </div>
               <div>
                 <label className="text-[10px] font-black uppercase flex justify-between">
-                  <span>Batas Bawah (Min dB)</span>
+                  <span>Min dB</span>
                   <span>{minDecibels} dB</span>
                 </label>
                 <input 
@@ -763,7 +1097,7 @@ export default function SpectrumGenerator() {
               </div>
               <div>
                 <label className="text-[10px] font-black uppercase flex justify-between">
-                  <span>Batas Atas (Max dB)</span>
+                  <span>Max dB</span>
                   <span>{maxDecibels} dB</span>
                 </label>
                 <input 
@@ -774,7 +1108,7 @@ export default function SpectrumGenerator() {
               </div>
               <div>
                 <label className="text-[10px] font-black uppercase flex justify-between">
-                  <span>Skala Tinggi (Height)</span>
+                  <span>Height Scale</span>
                   <span>{heightScale.toFixed(1)}x</span>
                 </label>
                 <input 
@@ -785,7 +1119,7 @@ export default function SpectrumGenerator() {
               </div>
               <div>
                 <label className="text-[10px] font-black uppercase flex justify-between">
-                  <span>Ketebalan Bar (Thickness)</span>
+                  <span>Bar Thickness</span>
                   <span>{barThickness.toFixed(1)}x</span>
                 </label>
                 <input 
@@ -796,7 +1130,7 @@ export default function SpectrumGenerator() {
               </div>
               <div>
                 <label className="text-[10px] font-black uppercase flex justify-between">
-                  <span>Jarak Bar (Gap)</span>
+                  <span>Bar Gap</span>
                   <span>{barGap} px</span>
                 </label>
                 <input 
@@ -813,18 +1147,18 @@ export default function SpectrumGenerator() {
             <button 
               onClick={exportGif}
               disabled={!audioPath || isExporting}
-              className="w-full bg-white text-black font-black py-3 border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:bg-zinc-200 active:translate-x-1 active:translate-y-1 transition-all flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+              className="w-full bg-[#FFE500] text-black font-black py-3 border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:bg-[#E5CD00] active:translate-x-1 active:translate-y-1 transition-all flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
             >
-              {isExporting ? 'MEMPROSES...' : <><Download className="w-5 h-5" /> EXPORT GIF</>}
+              {isExporting ? 'MEMPROSES...' : <><Download className="w-5 h-5" /> EXPORT VIDEO (.MP4)</>}
             </button>
           </div>
         </div>
 
         {/* Kanan: Layar Canvas (Lebar) */}
-        <div className="flex-1 bg-zinc-200 border-4 border-black p-2 flex flex-col justify-center items-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] min-h-[300px]">
-          <div className="bg-black border-4 border-black w-full aspect-video relative overflow-hidden flex items-center justify-center">
+        <div className="flex-1 bg-[#FF3CAC] border-4 border-black p-2 flex flex-col justify-center items-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] min-h-75">
+          <div className="border-4 border-black w-full aspect-video relative overflow-hidden flex items-center justify-center bg-zinc-900">
             {!isPlaying && (
-              <div className="absolute font-black text-zinc-600 text-xl md:text-3xl text-center p-6 z-10">
+              <div className="absolute font-black text-white text-xl md:text-3xl text-center p-6 z-10">
                 TEKAN PREVIEW<br/>UNTUK MELIHAT
               </div>
             )}
@@ -838,5 +1172,6 @@ export default function SpectrumGenerator() {
         </div>
       </div>
     </div>
+    </>
   );
 }

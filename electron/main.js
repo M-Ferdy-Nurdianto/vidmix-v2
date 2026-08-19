@@ -122,6 +122,17 @@ ipcMain.handle('select-output-file', async (event) => {
   return result.canceled ? null : result.filePath;
 });
 
+ipcMain.handle('select-output-webm', async () => {
+    const { canceled, filePath } = await dialog.showSaveDialog({
+      title: 'Simpan Video Transparan (WebM)',
+      defaultPath: 'transparent.webm',
+      filters: [
+        { name: 'WebM Video (Transparan)', extensions: ['webm'] }
+      ]
+    });
+    return canceled ? null : filePath;
+});
+
 ipcMain.handle('select-folder', async (event, type) => {
   const config = loadConfig();
   let defaultPath;
@@ -889,6 +900,87 @@ ipcMain.handle('render-editor', async (event, options) => {
   }
 });
 
+// Save raw buffer from canvas MediaRecorder to disk
+ipcMain.handle('save-buffer-to-file', async (event, { outputPath, buffer }) => {
+  const buf = Buffer.from(buffer);
+  fs.writeFileSync(outputPath, buf);
+  return outputPath;
+});
+
+// Dialog to pick output .mov file for canvas capture
+ipcMain.handle('select-output-mov', async () => {
+  const result = await dialog.showSaveDialog(mainWindow, {
+    title: 'Simpan Spectrum Video',
+    defaultPath: `spectrum_${Date.now()}.mp4`,
+    filters: [{ name: 'MP4 Video', extensions: ['mp4'] }, { name: 'MOV Video Transparan', extensions: ['mov'] }]
+  });
+  return result.canceled ? null : result.filePath;
+});
+
+// Encode PNG frame sequence to transparent MOV (ProRes 4444 with alpha)
+ipcMain.handle('encode-frames-to-mov', async (event, { frames, fps, outputPath }) => {
+  const tmpDir = path.join(os.tmpdir(), `spectrum_frames_${Date.now()}`);
+  fs.mkdirSync(tmpDir, { recursive: true });
+
+  // Write PNG frames to temp dir
+  for (let i = 0; i < frames.length; i++) {
+    const buf = Buffer.from(frames[i], 'base64');
+    fs.writeFileSync(path.join(tmpDir, `frame_${String(i).padStart(6, '0')}.png`), buf);
+    if (mainWindow && i % 10 === 0) {
+      mainWindow.webContents.send('spectrum-export-progress', {
+        percent: Math.round((i / frames.length) * 40), // 0-40% for writing
+        timemark: `Menulis frame ${i + 1}/${frames.length}`
+      });
+    }
+  }
+
+  return new Promise((resolve, reject) => {
+    const inputPattern = path.join(tmpDir, 'frame_%06d.png');
+
+    const isMov = outputPath.toLowerCase().endsWith('.mov');
+    let outOpts = isMov ? [
+      '-c:v', 'prores_ks',
+      '-profile:v', '4444',
+      '-pix_fmt', 'yuva444p10le',
+      '-vendor', 'apl0',
+      '-bits_per_mb', '8000',
+      '-an'
+    ] : [
+      '-c:v', 'libx264',
+      '-preset', 'medium',
+      '-pix_fmt', 'yuv420p',
+      '-an'
+    ];
+
+    ffmpeg()
+      .input(inputPattern)
+      .inputOptions(['-framerate', String(fps), '-start_number', '0'])
+      .outputOptions(outOpts)
+      .on('progress', (progress) => {
+        if (mainWindow) {
+          mainWindow.webContents.send('spectrum-export-progress', {
+            percent: 40 + Math.min(55, (progress.percent || 0) * 0.55),
+            timemark: progress.timemark || 'Mengenkode...'
+          });
+        }
+      })
+      .save(outputPath)
+      .on('end', () => {
+        // Cleanup temp dir
+        try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch (e) {}
+        if (mainWindow) {
+          mainWindow.webContents.send('spectrum-export-progress', { percent: 99, timemark: 'Selesai' });
+        }
+        resolve(outputPath);
+      })
+      .on('error', (err) => {
+        try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch (e) {}
+        reject(err);
+      });
+  });
+});
+
+
 ipcMain.handle('export-spectrum-gif', async (event, options) => {
   const { audioPath, outputPath, resolution = '1280x720', backgroundColor = 'black', shape = 'linear', colorMode = 'solid', solidColor = '#00FF55', particles = false, alignment = 'left', centerImagePath = '', advanced = {} } = options;
   const { heightScale = 1.0 } = advanced;
@@ -900,20 +992,10 @@ ipcMain.handle('export-spectrum-gif', async (event, options) => {
     const inputs = [audioPath];
     let filterParts = [];
     
-    filterParts.push(`color=c=${backgroundColor}:s=${resolution}[bg_raw]`);
-    let bgLayer = 'bg_raw';
-    
     // Apply height scale to audio via volume filter to simulate taller bars in FFmpeg
-    const audioInput = heightScale !== 1.0 ? '[audio_scaled]' : '0:a';
+    const audioInput = heightScale !== 1.0 ? '[audio_scaled]' : '[0:a]';
     if (heightScale !== 1.0) {
       filterParts.push(`[0:a]volume=${heightScale}[audio_scaled]`);
-    }
-    
-    if (particles) {
-      filterParts.push(`${audioInput}showcqt=s=${resolution}:mode=bar:bar_h=20:cmapped=1:sono_g=2:bar_g=2[aura]`);
-      filterParts.push(`[aura]boxblur=20:5[aura_blur]`);
-      filterParts.push(`[bg_raw][aura_blur]blend=all_mode=screen[bg_particles]`);
-      bgLayer = 'bg_particles';
     }
     
     let colors = solidColor.replace('#', '0x'); // default to solid
@@ -998,19 +1080,83 @@ ipcMain.handle('export-spectrum-gif', async (event, options) => {
       specLayer = 'spec_trans';
     }
 
-    filterParts.push(`[${bgLayer}][${specLayer}]overlay=0:0[spec_final]`);
-    filterParts.push(`[spec_final]split[s0][s1];[s0]palettegen=max_colors=128[p];[s1][p]paletteuse=dither=bayer`);
+    filterParts.push(`[${specLayer}]format=rgba[spec_final]`);
 
     const ffmpegCmd = ffmpeg();
     inputs.forEach(inp => ffmpegCmd.input(inp));
 
     ffmpegCmd
       .outputOptions([
-        '-t 15', 
-        '-filter_complex', filterParts.join(';')
+        '-filter_complex', filterParts.join(';'),
+        '-map', '[spec_final]',
+        '-t', '10',
+        '-c:v', 'qtrle',
+        '-pix_fmt', 'argb',
+        '-an'
       ])
+      .on('progress', (progress) => {
+        if (mainWindow) {
+          mainWindow.webContents.send('spectrum-export-progress', {
+            percent: Math.min(Math.max(progress.percent || 0, 0), 99),
+            timemark: progress.timemark || ''
+          });
+        }
+      })
       .save(outputPath)
       .on('end', () => resolve(outputPath))
       .on('error', (err) => reject(err));
+  });
+});
+
+ipcMain.handle('remove-video-bg', async (event, options) => {
+  const { videoPath, targetColorHex, tolerance, feather, outputPath } = options;
+  const hex = targetColorHex.startsWith('#') ? targetColorHex.substring(1) : targetColorHex;
+  const sim = (tolerance / 255).toFixed(2);
+  const blend = Math.min(1.0, feather / 10).toFixed(2);
+  
+  return new Promise((resolve, reject) => {
+    let command = ffmpeg(videoPath);
+    const ext = path.extname(outputPath).toLowerCase();
+    
+    let outputOpts = [];
+    if (ext === '.mov') {
+      outputOpts = [
+        '-c:v', 'prores_ks',
+        '-profile:v', '4444',
+        '-pix_fmt', 'yuva444p10le',
+        '-vendor', 'apl0',
+        '-bits_per_mb', '8000'
+      ];
+    } else if (ext === '.webm') {
+      outputOpts = ['-c:v', 'libvpx-vp9', '-pix_fmt', 'yuva420p', '-auto-alt-ref', '0'];
+    } else {
+      outputOpts = ['-c:v', 'qtrle', '-pix_fmt', 'argb'];
+    }
+    
+    command
+      .on('start', function(commandLine) {
+        console.log('Spawned Ffmpeg with command: ' + commandLine);
+      })
+      .complexFilter([
+        `[0:v]colorkey=0x${hex}:${sim}:${blend},format=rgba,scale=trunc(iw/2)*2:trunc(ih/2)*2[out]`
+      ])
+      .outputOptions([
+        '-map', '[out]',
+        '-map', '0:a?',
+        ...outputOpts,
+        '-c:a', 'copy',
+        '-y'
+      ])
+      .on('progress', (progress) => {
+        if (mainWindow) {
+          mainWindow.webContents.send('remove-video-bg-progress', {
+            percent: progress.percent || 0,
+            timemark: progress.timemark || ''
+          });
+        }
+      })
+      .save(outputPath)
+      .on('end', () => resolve(outputPath))
+      .on('error', (err) => reject(new Error('Gagal proses video: ' + err.message)));
   });
 });
