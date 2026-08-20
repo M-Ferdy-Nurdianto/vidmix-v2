@@ -155,9 +155,9 @@ export default function Mixer({
                 onDragOver={handleDragOver} 
                 onDrop={(e) => handleDrop(e, 'video')}
               >
-                <label className="text-xs font-bold block mb-1">Pilih Video (Bisa Drag & Drop)</label>
+                <label className="text-xs font-bold block mb-1">Pilih Video / Foto (Bisa Drag & Drop)</label>
                 <div className="flex gap-2 mb-2">
-                  <input type="text" readOnly value={videos.length > 0 ? `${videos.length} Video Terpilih` : 'Belum dipilih...'} className="w-full bg-zinc-100 border-2 border-black px-3 py-2 text-xs truncate font-bold" placeholder="Tarik file ke sini..." />
+                  <input type="text" readOnly value={videos.length > 0 ? `${videos.length} Media Terpilih` : 'Belum dipilih...'} className="w-full bg-zinc-100 border-2 border-black px-3 py-2 text-xs truncate font-bold" placeholder="Tarik file ke sini..." />
                   <button onClick={() => handleSelectFolder('video')} className="bg-[#00F0FF] border-2 border-black px-4 font-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5">Pilih</button>
                 </div>
                 {videos.length > 0 && (

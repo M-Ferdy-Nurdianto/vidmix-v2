@@ -138,10 +138,10 @@ export default function App() {
     if (!files.length) return;
 
     if (type === 'video') {
-      const filtered = files.filter(f => /\.(mp4|mkv|avi|mov)$/i.test(f));
+      const filtered = files.filter(f => /\.(mp4|mkv|avi|mov|jpg|jpeg|png|webp|bmp)$/i.test(f));
       const limitedVideos = filtered.slice(0, 5).map((path, i) => ({ id: Date.now().toString() + i, path, layers: [] }));
-      if (filtered.length > 5) toast.error('Maksimal 5 Video! Sisanya diabaikan.');
-      if (limitedVideos.length) { setVideos(limitedVideos); toast.success(`${limitedVideos.length} Video Terpilih (Drop)!`); }
+      if (filtered.length > 5) toast.error('Maksimal 5 Media! Sisanya diabaikan.');
+      if (limitedVideos.length) { setVideos(limitedVideos); toast.success(`${limitedVideos.length} Media Terpilih (Drop)!`); }
     } else if (type === 'audio') {
       const filtered = files.filter(f => /\.(mp3|wav|aac|m4a)$/i.test(f));
       const limitedAudios = filtered.slice(0, 20);

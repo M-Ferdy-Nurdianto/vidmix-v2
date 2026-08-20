@@ -252,6 +252,7 @@ export default function AdminPanel({ onClose }) {
                   <table className="w-full text-left border-collapse">
                     <thead>
                       <tr className="bg-black text-white border-b-4 border-black uppercase text-xs font-black tracking-widest">
+                        <th className="p-4 border-r-4 border-white/20 text-center w-16">No.</th>
                         <th className="p-4 border-r-4 border-white/20 whitespace-nowrap">License Key</th>
                         <th className="p-4 border-r-4 border-white/20 text-center">Type</th>
                         <th className="p-4 border-r-4 border-white/20 text-center">Status</th>
@@ -262,14 +263,17 @@ export default function AdminPanel({ onClose }) {
                     <tbody className="text-sm font-bold bg-white">
                       {Object.keys(keys).length === 0 ? (
                         <tr>
-                          <td colSpan="5" className="p-12 text-center text-zinc-500 font-bold uppercase tracking-widest text-lg">
+                          <td colSpan="6" className="p-12 text-center text-zinc-500 font-bold uppercase tracking-widest text-lg">
                             {isLoadingKeys ? "MEMUAT DATA..." : "BELUM ADA LISENSI"}
                           </td>
                         </tr>
                       ) : (
-                        Object.entries(keys).reverse().map(([keyStr, data]) => {
+                        Object.entries(keys).reverse().map(([keyStr, data], index) => {
+                          const totalKeys = Object.keys(keys).length;
+                          const rowNumber = totalKeys - index;
+                          const rowBg = index % 2 === 0 ? "bg-green-200" : "bg-purple-200";
                           const isExpired = data.expiresAt && new Date(data.expiresAt) < new Date();
-                          const isUsed = !!data.activatedAt;
+                          const isUsed = !!data.activatedAt || !!data.deviceId;
                           
                           let statusColor = "bg-zinc-200 border-zinc-400";
                           let statusText = "BELUM DIPAKAI";
@@ -287,7 +291,10 @@ export default function AdminPanel({ onClose }) {
                           if (data.type === 'lifetime') typeColor = "text-[#00cc44]";
 
                           return (
-                            <tr key={keyStr} className="border-b-4 border-black last:border-b-0 hover:bg-zinc-100 transition-colors">
+                            <tr key={keyStr} className={`border-b-4 border-black ${rowBg} hover:brightness-95 transition-colors`}>
+                              <td className="p-4 border-r-4 border-black text-center font-black text-lg">
+                                {rowNumber}
+                              </td>
                               <td className="p-4 border-r-4 border-black font-mono">
                                 <div className="flex items-center gap-3">
                                   <span className="text-lg bg-zinc-100 px-2 py-1 border-2 border-black">{keyStr}</span>

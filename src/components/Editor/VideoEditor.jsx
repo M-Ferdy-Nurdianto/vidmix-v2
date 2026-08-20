@@ -415,7 +415,7 @@ export default function VideoEditor({
           <div className="w-full h-full flex items-center justify-center">
             <LayerCanvas 
               mediaPath={videos.find(v => v.id === editingVideoId)?.path}
-              mediaType="video"
+              mediaType={videos.find(v => v.id === editingVideoId)?.path?.match(/\\.(jpg|jpeg|png|webp|bmp)$/i) ? 'photo' : 'video'}
               layers={videos.find(v => v.id === editingVideoId)?.layers || []}
               setLayers={(newLayers) => {
                 setVideos(prev => prev.map(v => v.id === editingVideoId ? { ...v, layers: typeof newLayers === 'function' ? newLayers(v.layers) : newLayers } : v));

@@ -305,7 +305,7 @@ ipcMain.handle('select-folder', async (event, type) => {
   
   if (type === 'video-files') {
     properties = ['openFile', 'multiSelections'];
-    filters = [{ name: 'Videos', extensions: ['mp4', 'mkv', 'avi', 'mov'] }];
+    filters = [{ name: 'Media', extensions: ['mp4', 'mkv', 'avi', 'mov', 'jpg', 'jpeg', 'png', 'webp', 'bmp'] }];
   } else if (type === 'audio-files') {
     properties = ['openFile', 'multiSelections'];
     filters = [{ name: 'Audios', extensions: ['mp3', 'wav', 'aac', 'm4a'] }];
@@ -692,8 +692,13 @@ ipcMain.handle('start-render', async (event, options) => {
           let command = ffmpeg();
           activeFFmpegCommand = command;
           
-          // Gunakan ping-pong video yang sudah di-preprocess
-          command.input(loopVideoPath).inputOptions(['-stream_loop', '-1']);
+          // Gunakan ping-pong video yang sudah di-preprocess atau foto dengan loop
+          const isMainPhoto = /\\.(jpg|jpeg|png|webp|bmp)$/i.test(loopVideoPath);
+          if (isMainPhoto) {
+            command.input(loopVideoPath).inputOptions(['-loop', '1']);
+          } else {
+            command.input(loopVideoPath).inputOptions(['-stream_loop', '-1']);
+          }
           if (watermark) command.input(watermark);
           randomizedAudios.forEach(audio => command.input(audio));
 
@@ -752,6 +757,9 @@ ipcMain.handle('start-render', async (event, options) => {
           }
 
           let lastOutputLabel = '0:v';
+          // Ensure even dimensions for libx264 compatibility (especially important for photos)
+          filterParts.push(`[${lastOutputLabel}]scale=trunc(iw/2)*2:trunc(ih/2)*2[main_v_even]`);
+          lastOutputLabel = 'main_v_even';
 
           // Apply Global Watermark
           if (watermark) {
@@ -780,8 +788,8 @@ ipcMain.handle('start-render', async (event, options) => {
           let filterComplex = filterParts.join(';');
 
           let outputOpts = [
-            `-map [${lastOutputLabel}]`,
-            `-map [${finalAudioLabel}]`,
+            `-map ${lastOutputLabel.includes(':') ? lastOutputLabel : `[${lastOutputLabel}]`}`,
+            `-map ${finalAudioLabel.includes(':') ? finalAudioLabel : `[${finalAudioLabel}]`}`,
             `-t ${totalDurationSec}`,
             `-c:v ${encoderToUse}`,
             '-pix_fmt yuv420p',
@@ -969,7 +977,7 @@ ipcMain.handle('render-editor', async (event, options) => {
         });
 
         let outputOpts = [
-          `-map [${lastOutputLabel}]`,
+          `-map ${lastOutputLabel.includes(':') ? lastOutputLabel : `[${lastOutputLabel}]`}`,
           `-c:v ${encoderToUse}`,
           '-pix_fmt yuv420p',
           '-threads 0',
@@ -978,7 +986,7 @@ ipcMain.handle('render-editor', async (event, options) => {
         
         // Handle audio: map audio from video if present, or add silent audio if needed
         if (finalAudioLabel) {
-          outputOpts.push(`-map [${finalAudioLabel}]`);
+          outputOpts.push(`-map ${finalAudioLabel.includes(':') ? finalAudioLabel : `[${finalAudioLabel}]`}`);
           outputOpts.push('-c:a aac');
         } else if (mediaType === 'video') {
           outputOpts.push('-map 0:a?');
@@ -1460,14 +1468,23 @@ ipcMain.handle('admin:generateKey', async (event, { token, type, deviceId }) => 
     const checksum = crypto.createHash('md5').update(`${typeCode}-${seg1}-${seg2}`).digest('hex').slice(0, 4).toUpperCase();
     const key = `VIDMIX-${typeCode}-${seg1}-${seg2}-${checksum}`;
     
+    const issuedAt = new Date().toISOString().split('T')[0];
+    let expiresAt = null;
+    const typeCfg = LICENSE_TYPES[type];
+    if (typeCfg && typeCfg.days !== null) {
+      const exp = new Date();
+      exp.setDate(exp.getDate() + typeCfg.days);
+      expiresAt = exp.toISOString().split('T')[0];
+    }
+    
     db.licenses[key] = {
       type,
-      label: LICENSE_TYPES[type]?.label || type,
-      issuedAt: new Date().toISOString().split('T')[0],
+      label: typeCfg?.label || type,
+      issuedAt: issuedAt,
       activatedBy: null,
-      activatedAt: null,
+      activatedAt: issuedAt,
       deviceId: deviceId ? deviceId.trim() : null,
-      expiresAt: null
+      expiresAt: expiresAt
     };
     
     await updateGistWithToken(token, db);
