@@ -642,6 +642,15 @@ ipcMain.handle('start-render', async (event, options) => {
     throw new Error('Video, Musik, dan Folder Output wajib diisi!');
   }
 
+  // Prioritaskan video yang tidak diedit (Fast Render) agar diproses lebih dulu
+  videos.sort((a, b) => {
+    const isAFast = !(/\.(jpg|jpeg|png|webp|bmp)$/i.test(a.path)) && !watermark && (!a.layers || a.layers.length === 0);
+    const isBFast = !(/\.(jpg|jpeg|png|webp|bmp)$/i.test(b.path)) && !watermark && (!b.layers || b.layers.length === 0);
+    if (isAFast && !isBFast) return -1;
+    if (!isAFast && isBFast) return 1;
+    return 0;
+  });
+
   let totalDurationSec = 900; // Default 15 menit
   if (loopDuration === '30m') totalDurationSec = 1800;
   if (loopDuration === '1h') totalDurationSec = 3600;
@@ -693,7 +702,9 @@ ipcMain.handle('start-render', async (event, options) => {
           activeFFmpegCommand = command;
           
           // Gunakan ping-pong video yang sudah di-preprocess atau foto dengan loop
-          const isMainPhoto = /\\.(jpg|jpeg|png|webp|bmp)$/i.test(loopVideoPath);
+          const isMainPhoto = /\.(jpg|jpeg|png|webp|bmp)$/i.test(loopVideoPath);
+          const isFastRender = !isMainPhoto && !watermark && layers.length === 0;
+
           if (isMainPhoto) {
             command.input(loopVideoPath).inputOptions(['-loop', '1']);
           } else {
@@ -757,60 +768,75 @@ ipcMain.handle('start-render', async (event, options) => {
           }
 
           let lastOutputLabel = '0:v';
-          // Ensure even dimensions for libx264 compatibility (especially important for photos)
-          filterParts.push(`[${lastOutputLabel}]scale=trunc(iw/2)*2:trunc(ih/2)*2[main_v_even]`);
-          lastOutputLabel = 'main_v_even';
+          
+          if (!isFastRender) {
+            // Ensure even dimensions for libx264 compatibility (especially important for photos)
+            filterParts.push(`[${lastOutputLabel}]scale=trunc(iw/2)*2:trunc(ih/2)*2[main_v_even]`);
+            lastOutputLabel = 'main_v_even';
 
-          // Apply Global Watermark
-          if (watermark) {
-            filterParts.push(`[1:v]scale=150:-1[wm]`);
-            filterParts.push(`[${lastOutputLabel}][wm]overlay=W-w-20:H-h-20[out_wm]`);
-            lastOutputLabel = 'out_wm';
-          }
-
-          let specIdx = 0;
-          // Apply ALL Layers in Z-Index Order (menggunakan helper functions)
-          sortedLayers.forEach(layer => {
-            if (['watermark', 'sticker', 'image'].includes(layer.type)) {
-              const inputObj = imageInputs.find(img => img.layer.id === layer.id);
-              if (!inputObj) return;
-              lastOutputLabel = buildImageOverlayFilter(layer, inputObj, lastOutputLabel, filterParts);
-              
-            } else if (layer.type === 'text') {
-              lastOutputLabel = buildTextFilter(layer, lastOutputLabel, filterParts);
-              
-            } else if (layer.type === 'spectrum') {
-              lastOutputLabel = buildSpectrumFilter(layer, specIdx, lastOutputLabel, filterParts);
-              specIdx++;
+            // Apply Global Watermark
+            if (watermark) {
+              filterParts.push(`[1:v]scale=150:-1[wm]`);
+              filterParts.push(`[${lastOutputLabel}][wm]overlay=W-w-20:H-h-20[out_wm]`);
+              lastOutputLabel = 'out_wm';
             }
-          });
+
+            let specIdx = 0;
+            // Apply ALL Layers in Z-Index Order (menggunakan helper functions)
+            sortedLayers.forEach(layer => {
+              if (['watermark', 'sticker', 'image'].includes(layer.type)) {
+                const inputObj = imageInputs.find(img => img.layer.id === layer.id);
+                if (!inputObj) return;
+                lastOutputLabel = buildImageOverlayFilter(layer, inputObj, lastOutputLabel, filterParts);
+                
+              } else if (layer.type === 'text') {
+                lastOutputLabel = buildTextFilter(layer, lastOutputLabel, filterParts);
+                
+              } else if (layer.type === 'spectrum') {
+                lastOutputLabel = buildSpectrumFilter(layer, specIdx, lastOutputLabel, filterParts);
+                specIdx++;
+              }
+            });
+          }
 
           let filterComplex = filterParts.join(';');
 
           let outputOpts = [
             `-map ${lastOutputLabel.includes(':') ? lastOutputLabel : `[${lastOutputLabel}]`}`,
             `-map ${finalAudioLabel.includes(':') ? finalAudioLabel : `[${finalAudioLabel}]`}`,
-            `-t ${totalDurationSec}`,
-            `-c:v ${encoderToUse}`,
-            '-pix_fmt yuv420p',
-            '-r 30', // Tetapkan framerate ke 30fps untuk akurasi progress bar dan konsistensi
+            `-t ${totalDurationSec}`
+          ];
+
+          if (isFastRender) {
+            outputOpts.push('-c:v', 'copy');
+          } else {
+            outputOpts.push(
+              `-c:v ${encoderToUse}`,
+              '-pix_fmt yuv420p',
+              '-r 30' // Tetapkan framerate ke 30fps
+            );
+          }
+
+          outputOpts.push(
             '-c:a aac',
             '-shortest',
             '-threads 0'  // Gunakan semua CPU cores
-          ];
+          );
 
           if (allowOverwrite) outputOpts.push('-y');
 
-          if (encoderToUse === 'libx264') {
-            outputOpts.push('-preset', 'ultrafast');
-            if (compressionLevel === 'low') outputOpts.push('-crf', '18');
-            else if (compressionLevel === 'high') outputOpts.push('-crf', '28');
-            else outputOpts.push('-crf', '23');
-          } else {
-            if (encoderToUse === 'h264_nvenc') outputOpts.push('-preset', 'fast');
-            if (compressionLevel === 'low') outputOpts.push('-b:v', '8M');
-            else if (compressionLevel === 'high') outputOpts.push('-b:v', '2M');
-            else outputOpts.push('-b:v', '4M');
+          if (!isFastRender) {
+            if (encoderToUse === 'libx264') {
+              outputOpts.push('-preset', 'ultrafast');
+              if (compressionLevel === 'low') outputOpts.push('-crf', '18');
+              else if (compressionLevel === 'high') outputOpts.push('-crf', '28');
+              else outputOpts.push('-crf', '23');
+            } else {
+              if (encoderToUse === 'h264_nvenc') outputOpts.push('-preset', 'fast');
+              if (compressionLevel === 'low') outputOpts.push('-b:v', '8M');
+              else if (compressionLevel === 'high') outputOpts.push('-b:v', '2M');
+              else outputOpts.push('-b:v', '4M');
+            }
           }
 
           command

@@ -291,7 +291,7 @@ export default function AdminPanel({ onClose }) {
                           if (data.type === 'lifetime') typeColor = "text-[#00cc44]";
 
                           return (
-                            <tr key={keyStr} className={`border-b-4 border-black ${rowBg} hover:brightness-95 transition-colors`}>
+                            <tr key={keyStr} className={`border-b-4 border-black ${rowBg} hover:bg-[#FFE500] transition-colors`}>
                               <td className="p-4 border-r-4 border-black text-center font-black text-lg">
                                 {rowNumber}
                               </td>
