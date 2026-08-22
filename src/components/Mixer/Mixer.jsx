@@ -171,12 +171,24 @@ export default function Mixer({
                             <span className="shrink-0 bg-[#00FF55]-black border border-black px-1 py-0.5 text-[9px] uppercase font-black" title="Sudah diedit">★ DIEDIT</span>
                           )}
                         </div>
-                        <button 
-                          onClick={() => setEditingVideoId(vid.id)}
-                          className="bg-[#FF90E8] border-2 border-black px-2 py-1 text-xs font-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 shrink-0"
-                        >
-                          EDIT
-                        </button>
+                        <div className="flex gap-1 shrink-0">
+                          <button 
+                            onClick={() => setEditingVideoId(vid.id)}
+                            className="bg-[#FF90E8] border-2 border-black px-2 py-1 text-xs font-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5"
+                          >
+                            EDIT
+                          </button>
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setVideos(prev => prev.filter(v => v.id !== vid.id));
+                            }}
+                            title="Hapus Media"
+                            className="bg-red-500 border-2 border-black px-2 py-1 text-xs font-black text-white shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 hover:bg-red-600"
+                          >
+                            X
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -364,8 +376,20 @@ export default function Mixer({
                         <div className="truncate flex-1 font-black text-sm" title={audioPath}>
                           {audioPath.split('\\').pop().split('/').pop()}
                         </div>
-                        <div className="text-xl px-2 font-black cursor-grab active:cursor-grabbing">
-                          ≡
+                        <div className="flex gap-2 items-center">
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setAudios(prev => prev.filter((_, i) => i !== idx));
+                            }}
+                            title="Hapus Musik"
+                            className="bg-red-500 border-2 border-black w-6 h-6 flex items-center justify-center text-xs font-black text-white shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 hover:bg-red-600"
+                          >
+                            X
+                          </button>
+                          <div className="text-xl px-2 font-black cursor-grab active:cursor-grabbing">
+                            ≡
+                          </div>
                         </div>
                       </div>
                     ))}

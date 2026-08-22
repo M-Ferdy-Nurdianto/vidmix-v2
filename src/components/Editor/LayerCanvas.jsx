@@ -276,7 +276,8 @@ export default function LayerCanvas({ mediaPath, mediaType, layers, setLayers, s
  fontFamily: layer.fontFamily || 'Arial',
  fontStyle: layer.fontStyle || 'normal',
  textShadow: '2px 2px 0px rgba(0,0,0,1)', 
- whiteSpace: 'nowrap' 
+ whiteSpace: 'pre',
+ textAlign: 'center'
  }}>
  {layer.content}
  </div>

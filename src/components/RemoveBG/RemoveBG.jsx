@@ -120,10 +120,13 @@ export default function RemoveBG(){
     if(mode==="picker"){const pi=(y*image.width+x)*4;setPickedColor({r:originalData[pi],g:originalData[pi+1],b:originalData[pi+2]});return;}
     if(mode==="fill"){
       pushHistory();setIsProcessing(true);
+      const pi=(y*image.width+x)*4;
+      const clickedColor = {r: originalData[pi], g: originalData[pi+1], b: originalData[pi+2]};
+      setPickedColor(clickedColor);
       setTimeout(()=>{
         let indices;
         if(removeMethod==="smart"){indices=floodFill(originalData,image.width,image.height,x,y,tolerance);}
-        else{const pi=(y*image.width+x)*4;const cr=pickedColor?.r??originalData[pi],cg=pickedColor?.g??originalData[pi+1],cb=pickedColor?.b??originalData[pi+2];indices=globalColorRemove(originalData,image.width,image.height,cr,cg,cb,tolerance);}
+        else{indices=globalColorRemove(originalData,image.width,image.height,clickedColor.r,clickedColor.g,clickedColor.b,tolerance);}
         const{newData,finalAlpha}=applyRemoval(indices,feather,originalData,alphaMap,image.width,image.height);
         setCurrentData(newData);setAlphaMap(finalAlpha);setIsProcessing(false);
       },10);
@@ -150,6 +153,7 @@ export default function RemoveBG(){
       const corners=[[0,0],[width-1,0],[0,height-1],[width-1,height-1],[Math.floor(width/2),0],[0,Math.floor(height/2)]];
       let rS=0,gS=0,bS=0;for(const[cx,cy]of corners){const pi=(cy*width+cx)*4;rS+=originalData[pi];gS+=originalData[pi+1];bS+=originalData[pi+2];}
       const r=rS/corners.length,g=gS/corners.length,b=bS/corners.length;
+      setPickedColor({r: Math.round(r), g: Math.round(g), b: Math.round(b)});
       const indices=[];for(let i=0;i<width*height;i++){const pi=i*4;if(colorDistance(originalData[pi],originalData[pi+1],originalData[pi+2],r,g,b)<=tolerance)indices.push(i);}
       const{newData,finalAlpha}=applyRemoval(indices,feather,originalData,alphaMap,width,height);
       setCurrentData(newData);setAlphaMap(finalAlpha);setIsProcessing(false);setIsDone(true);

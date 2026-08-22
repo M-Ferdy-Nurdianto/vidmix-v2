@@ -337,19 +337,37 @@ ipcMain.handle('select-folder', async (event, type) => {
 ipcMain.handle('get-gifs', async () => {
   try {
     const isDev = !app.isPackaged;
-    const gifsPath = isDev 
+    const defaultGifsPath = isDev 
       ? path.join(__dirname, '../public/gifs')
       : path.join(process.resourcesPath, 'public/gifs');
       
-    if (!fs.existsSync(gifsPath)) {
-      return [];
+    const userDataGifsPath = path.join(app.getPath('userData'), 'UserGifs');
+    if (!fs.existsSync(userDataGifsPath)) {
+      fs.mkdirSync(userDataGifsPath, { recursive: true });
     }
     
-    const files = fs.readdirSync(gifsPath);
+    let allFiles = [];
     const allowed = ['.gif', '.png', '.mp4', '.mov', '.webm'];
-    return files
-      .filter(file => allowed.includes(path.extname(file).toLowerCase()))
-      .map(file => path.join(gifsPath, file).replace(/\\/g, '/'));
+    
+    // Load default GIFs if they exist
+    if (fs.existsSync(defaultGifsPath)) {
+      const files = fs.readdirSync(defaultGifsPath);
+      const defaultFiles = files
+        .filter(file => allowed.includes(path.extname(file).toLowerCase()))
+        .map(file => path.join(defaultGifsPath, file).replace(/\\/g, '/'));
+      allFiles = allFiles.concat(defaultFiles);
+    }
+    
+    // Load user-uploaded GIFs
+    if (fs.existsSync(userDataGifsPath)) {
+      const files = fs.readdirSync(userDataGifsPath);
+      const userFiles = files
+        .filter(file => allowed.includes(path.extname(file).toLowerCase()))
+        .map(file => path.join(userDataGifsPath, file).replace(/\\/g, '/'));
+      allFiles = allFiles.concat(userFiles);
+    }
+    
+    return allFiles;
   } catch (err) {
     console.error('Error reading gifs directory:', err);
     return [];
@@ -357,17 +375,11 @@ ipcMain.handle('get-gifs', async () => {
 });
 
 ipcMain.handle('open-gifs-folder', () => {
-  const isDev = !app.isPackaged;
-  const gifsPath = isDev 
-    ? path.join(__dirname, '../public/gifs')
-    : path.join(process.resourcesPath, 'public/gifs');
-    
-  if (fs.existsSync(gifsPath)) {
-    shell.openPath(gifsPath);
-  } else {
-    fs.mkdirSync(gifsPath, { recursive: true });
-    shell.openPath(gifsPath);
+  const userDataGifsPath = path.join(app.getPath('userData'), 'UserGifs');
+  if (!fs.existsSync(userDataGifsPath)) {
+    fs.mkdirSync(userDataGifsPath, { recursive: true });
   }
+  shell.openPath(userDataGifsPath);
 });
 
 ipcMain.handle('upload-gif', async () => {
@@ -382,16 +394,12 @@ ipcMain.handle('upload-gif', async () => {
       const sourcePath = result.filePaths[0];
       const fileName = path.basename(sourcePath);
       
-      const isDev = !app.isPackaged;
-      const gifsDir = isDev 
-        ? path.join(__dirname, '../public/gifs')
-        : path.join(process.resourcesPath, 'public/gifs');
-        
-      if (!fs.existsSync(gifsDir)) {
-        fs.mkdirSync(gifsDir, { recursive: true });
+      const userDataGifsPath = path.join(app.getPath('userData'), 'UserGifs');
+      if (!fs.existsSync(userDataGifsPath)) {
+        fs.mkdirSync(userDataGifsPath, { recursive: true });
       }
       
-      const destPath = path.join(gifsDir, fileName);
+      const destPath = path.join(userDataGifsPath, fileName);
       fs.copyFileSync(sourcePath, destPath);
       
       return destPath.replace(/\\/g, '/');
@@ -520,13 +528,13 @@ function buildSpectrumFilter(layer, specIdx, lastOutputLabel, filterParts) {
     // Center image overlay
     if (layer.centerImageIndex) {
       const imgSize = Math.round(size / 2);
-      filterParts.push(`[${layer.centerImageIndex}:v]scale=${imgSize}:${imgSize}:force_original_aspect_ratio=decrease,pad=${imgSize}:${imgSize}:(ow-iw)/2:(oh-ih)/2:color=black@0.0,format=rgba[img_scaled_${specIdx}]`);
+      filterParts.push(`[${layer.centerImageIndex}:v]scale=${imgSize}:${imgSize}:force_original_aspect_ratio=decrease:flags=lanczos,pad=${imgSize}:${imgSize}:(ow-iw)/2:(oh-ih)/2:color=black@0.0,format=rgba[img_scaled_${specIdx}]`);
       filterParts.push(`[img_scaled_${specIdx}]vignette=PI/2:mode=backward[img_circ_${specIdx}]`);
       filterParts.push(`[${toOverlay}][img_circ_${specIdx}]overlay=(W-w)/2:(H-h)/2[wave_with_img_${specIdx}]`);
       toOverlay = `wave_with_img_${specIdx}`;
     }
     
-    filterParts.push(`[${toOverlay}]scale=iw*${scale}:ih*${scale}[spec_scaled_${specIdx}]`);
+    filterParts.push(`[${toOverlay}]scale=iw*${scale}:ih*${scale}:flags=lanczos[spec_scaled_${specIdx}]`);
     filterParts.push(`[${lastOutputLabel}][spec_scaled_${specIdx}]overlay=${overlayX}:${overlayY}[${specOutput}]`);
     
   } else {
@@ -549,7 +557,7 @@ function buildSpectrumFilter(layer, specIdx, lastOutputLabel, filterParts) {
       toOverlay = `wave_hue_${specIdx}`;
     }
     
-    filterParts.push(`[${toOverlay}]scale=iw*${scale}:ih*${scale}[spec_scaled_${specIdx}]`);
+    filterParts.push(`[${toOverlay}]scale=iw*${scale}:ih*${scale}:flags=lanczos[spec_scaled_${specIdx}]`);
     filterParts.push(`[${lastOutputLabel}][spec_scaled_${specIdx}]overlay=${overlayX}:${overlayY}[${specOutput}]`);
   }
   
@@ -579,7 +587,8 @@ function buildTextFilter(layer, lastOutputLabel, filterParts) {
 function buildImageOverlayFilter(layer, inputObj, lastOutputLabel, filterParts) {
   const currentOutput = `v${inputObj.index}`;
   const scale = layer.scale || 1;
-  filterParts.push(`[${inputObj.index}:v]scale=iw*${scale}:ih*${scale}[scaled_${inputObj.index}]`);
+  // Gunakan filter lanczos agar saat di-zoom (upscale) gambarnya tetap halus dan tidak pecah (burik)
+  filterParts.push(`[${inputObj.index}:v]scale=iw*${scale}:ih*${scale}:flags=lanczos[scaled_${inputObj.index}]`);
   
   const overlayX = `(main_w*(${layer.x}/100))-overlay_w/2`;
   const overlayY = `(main_h*(${layer.y}/100))-overlay_h/2`;
@@ -706,7 +715,7 @@ ipcMain.handle('start-render', async (event, options) => {
           const isFastRender = !isMainPhoto && !watermark && layers.length === 0;
 
           if (isMainPhoto) {
-            command.input(loopVideoPath).inputOptions(['-loop', '1']);
+            command.input(loopVideoPath).inputOptions(['-loop', '1', '-framerate', '30']);
           } else {
             command.input(loopVideoPath).inputOptions(['-stream_loop', '-1']);
           }
@@ -721,15 +730,15 @@ ipcMain.handle('start-render', async (event, options) => {
           sortedLayers.forEach(layer => {
             if (layer.type === 'watermark' || layer.type === 'sticker' || layer.type === 'image') {
               const ext = path.extname(layer.src).toLowerCase();
-              const isGif = ext === '.gif';
+              const isGif = ext === '.gif' || ext === '.mp4' || ext === '.mov' || ext === '.webm';
               if (isGif) {
-                command.input(layer.src).inputOptions(['-ignore_loop', '0']);
+                command.input(layer.src).inputOptions(['-stream_loop', '-1']);
               } else {
-                command.input(layer.src);
+                command.input(layer.src).inputOptions(['-loop', '1', '-framerate', '30']);
               }
               imageInputs.push({ layer, index: nextInputIndex++ });
             } else if (layer.type === 'spectrum' && layer.shape === 'circular' && layer.centerImage) {
-              command.input(layer.centerImage);
+              command.input(layer.centerImage).inputOptions(['-loop', '1', '-framerate', '30']);
               layer.centerImageIndex = nextInputIndex++;
             }
           });
@@ -946,25 +955,24 @@ ipcMain.handle('render-editor', async (event, options) => {
         let lastOutputLabel = '0:v';
 
         if (mediaType === 'photo') {
-          command.input(mediaPath).inputOptions(['-loop', '1']);
+          command.input(mediaPath).inputOptions(['-loop', '1', '-framerate', '30']);
         } else {
           command.input(mediaPath);
         }
 
-        // Gather all image/gif inputs
         let imageInputs = [];
         sortedLayers.forEach(layer => {
           if (layer.type === 'watermark' || layer.type === 'sticker' || layer.type === 'image') {
             const ext = path.extname(layer.src).toLowerCase();
-            const isGif = ext === '.gif';
+            const isGif = ext === '.gif' || ext === '.mp4' || ext === '.mov' || ext === '.webm';
             if (isGif) {
-              command.input(layer.src).inputOptions(['-ignore_loop', '0']);
+              command.input(layer.src).inputOptions(['-stream_loop', '-1']);
             } else {
-              command.input(layer.src);
+              command.input(layer.src).inputOptions(['-loop', '1', '-framerate', '30']);
             }
             imageInputs.push({ layer, index: nextInputIndex++ });
           } else if (layer.type === 'spectrum' && layer.shape === 'circular' && layer.centerImage) {
-            command.input(layer.centerImage);
+            command.input(layer.centerImage).inputOptions(['-loop', '1', '-framerate', '30']);
             layer.centerImageIndex = nextInputIndex++;
           }
         });
@@ -1327,6 +1335,15 @@ ipcMain.handle('remove-video-bg', async (event, options) => {
       outputOpts = ['-c:v', 'qtrle', '-pix_fmt', 'argb'];
     }
     
+    let audioCodec = 'copy';
+    if (ext === '.webm') {
+      audioCodec = 'libvorbis';
+    } else if (ext === '.mov') {
+      audioCodec = 'aac';
+    } else {
+      audioCodec = 'aac';
+    }
+    
     command
       .on('start', function(commandLine) {
         console.log('Spawned Ffmpeg with command: ' + commandLine);
@@ -1338,7 +1355,7 @@ ipcMain.handle('remove-video-bg', async (event, options) => {
         '-map', '[out]',
         '-map', '0:a?',
         ...outputOpts,
-        '-c:a', 'copy',
+        '-c:a', audioCodec,
         '-y'
       ])
       .on('progress', (progress) => {

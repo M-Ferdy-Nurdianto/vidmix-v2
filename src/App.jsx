@@ -108,15 +108,45 @@ export default function App() {
       
       if (result) {
         if (type === 'video') {
-          const limitedVideos = result.slice(0, 5).map((path, i) => ({ id: Date.now().toString() + i, path, layers: [] }));
-          if (result.length > 5) toast.error('Maksimal 5 Video! Sisanya diabaikan.');
-          setVideos(limitedVideos);
-          toast.success(`${limitedVideos.length} Video Terpilih!`);
+          setVideos(prev => {
+            const currentPaths = new Set(prev.map(v => v.path));
+            const newFiles = result.filter(path => !currentPaths.has(path));
+            if (newFiles.length === 0) return prev;
+            
+            const availableSlots = 5 - prev.length;
+            if (availableSlots <= 0) {
+              toast.error('Maksimal 5 Video sudah tercapai!');
+              return prev;
+            }
+            
+            const limitedVideos = newFiles.slice(0, availableSlots).map((path, i) => ({ id: Date.now().toString() + i + Math.random(), path, layers: [] }));
+            if (newFiles.length > availableSlots) {
+              toast.error(`Hanya ${availableSlots} video yang ditambahkan (Maks 5).`);
+            } else {
+              toast.success(`${limitedVideos.length} Video Ditambahkan!`);
+            }
+            return [...prev, ...limitedVideos];
+          });
         } else if (type === 'audio') {
-          const limitedAudios = result.slice(0, 20);
-          if (result.length > 20) toast.error('Maksimal 20 Musik! Sisanya diabaikan.');
-          setAudios(limitedAudios);
-          toast.success(`${limitedAudios.length} Musik Terpilih!`);
+          setAudios(prev => {
+            const currentPaths = new Set(prev);
+            const newFiles = result.filter(path => !currentPaths.has(path));
+            if (newFiles.length === 0) return prev;
+            
+            const availableSlots = 20 - prev.length;
+            if (availableSlots <= 0) {
+              toast.error('Maksimal 20 Musik sudah tercapai!');
+              return prev;
+            }
+            
+            const limitedAudios = newFiles.slice(0, availableSlots);
+            if (newFiles.length > availableSlots) {
+              toast.error(`Hanya ${availableSlots} musik yang ditambahkan (Maks 20).`);
+            } else {
+              toast.success(`${limitedAudios.length} Musik Ditambahkan!`);
+            }
+            return [...prev, ...limitedAudios];
+          });
         } else if (type === 'output') {
           setOutputDir(result);
           toast.success('Folder Output Diset!');
@@ -139,14 +169,46 @@ export default function App() {
 
     if (type === 'video') {
       const filtered = files.filter(f => /\.(mp4|mkv|avi|mov|jpg|jpeg|png|webp|bmp)$/i.test(f));
-      const limitedVideos = filtered.slice(0, 5).map((path, i) => ({ id: Date.now().toString() + i, path, layers: [] }));
-      if (filtered.length > 5) toast.error('Maksimal 5 Media! Sisanya diabaikan.');
-      if (limitedVideos.length) { setVideos(limitedVideos); toast.success(`${limitedVideos.length} Media Terpilih (Drop)!`); }
+      setVideos(prev => {
+        const currentPaths = new Set(prev.map(v => v.path));
+        const newFiles = filtered.filter(path => !currentPaths.has(path));
+        if (newFiles.length === 0) return prev;
+        
+        const availableSlots = 5 - prev.length;
+        if (availableSlots <= 0) {
+          toast.error('Maksimal 5 Video sudah tercapai!');
+          return prev;
+        }
+        
+        const limitedVideos = newFiles.slice(0, availableSlots).map((path, i) => ({ id: Date.now().toString() + i + Math.random(), path, layers: [] }));
+        if (newFiles.length > availableSlots) {
+          toast.error(`Hanya ${availableSlots} video yang ditambahkan (Maks 5).`);
+        } else {
+          toast.success(`${limitedVideos.length} Video Ditambahkan (Drop)!`);
+        }
+        return [...prev, ...limitedVideos];
+      });
     } else if (type === 'audio') {
       const filtered = files.filter(f => /\.(mp3|wav|aac|m4a)$/i.test(f));
-      const limitedAudios = filtered.slice(0, 20);
-      if (filtered.length > 20) toast.error('Maksimal 20 Musik! Sisanya diabaikan.');
-      if (limitedAudios.length) { setAudios(limitedAudios); toast.success(`${limitedAudios.length} Musik Terpilih (Drop)!`); }
+      setAudios(prev => {
+        const currentPaths = new Set(prev);
+        const newFiles = filtered.filter(path => !currentPaths.has(path));
+        if (newFiles.length === 0) return prev;
+        
+        const availableSlots = 20 - prev.length;
+        if (availableSlots <= 0) {
+          toast.error('Maksimal 20 Musik sudah tercapai!');
+          return prev;
+        }
+        
+        const limitedAudios = newFiles.slice(0, availableSlots);
+        if (newFiles.length > availableSlots) {
+          toast.error(`Hanya ${availableSlots} musik yang ditambahkan (Maks 20).`);
+        } else {
+          toast.success(`${limitedAudios.length} Musik Ditambahkan (Drop)!`);
+        }
+        return [...prev, ...limitedAudios];
+      });
     } else if (type === 'output') {
       setOutputDir(files[0]);
       toast.success('Folder Output Diset (Drop)!');
