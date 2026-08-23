@@ -57,14 +57,14 @@ export default function CriticalErrorOverlay({ errorMsg, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[10000] bg-red-600 flex items-center justify-center p-6 animate-in fade-in duration-100">
+    <div className="fixed inset-0 z-10000 flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 font-mono">
       <div className="bg-black text-red-500 border-8 border-red-500 p-8 shadow-[12px_12px_0px_0px_rgba(255,255,255,1)] max-w-4xl w-full flex flex-col items-center text-center">
         <AlertTriangle className="w-24 h-24 mb-6 animate-pulse" />
         <h1 className="text-5xl font-black mb-4 uppercase tracking-widest text-white">Critical Error</h1>
         <p className="font-bold text-xl mb-6 text-white uppercase">Sistem mengalami kegagalan proses. Segera copy log ini atau tutup peringatan untuk menghentikan suara.</p>
         
         <div className="bg-red-950 border-4 border-red-500 p-4 w-full mb-8 overflow-y-auto max-h-64 text-left">
-          <pre className="font-mono text-sm whitespace-pre-wrap break-words">{errorMsg}</pre>
+          <pre className="font-mono text-sm whitespace-pre-wrap wrap-break-word">{errorMsg}</pre>
         </div>
         
         <div className="flex gap-6 w-full justify-center">

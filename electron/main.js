@@ -1102,11 +1102,7 @@ ipcMain.handle('render-editor', async (event, options) => {
         let nextInputIndex = 1;
         let lastOutputLabel = '0:v';
 
-        if (mediaType === 'photo') {
-          command.input(mediaPath).inputOptions(['-loop', '1', '-framerate', '30']);
-        } else {
-          command.input(mediaPath);
-        }
+        command.input(mediaPath);
 
         let imageInputs = [];
         sortedLayers.forEach(layer => {
@@ -1140,11 +1136,7 @@ ipcMain.handle('render-editor', async (event, options) => {
 
         let specIdx = 0;
 
-        // Untuk foto, konversi format ke yuv420p dan pastikan dimensi genap
-        if (mediaType === 'photo') {
-          filterParts.push(`[${lastOutputLabel}]format=yuv420p,scale=trunc(iw/2)*2:trunc(ih/2)*2[main_v_even]`);
-          lastOutputLabel = 'main_v_even';
-        }
+
 
         // Build complex filter menggunakan reusable helper functions
         sortedLayers.forEach(layer => {
@@ -1170,19 +1162,17 @@ ipcMain.handle('render-editor', async (event, options) => {
           `-c:v ${encoderToUse}`,
           '-pix_fmt yuv420p',
           '-threads 0',
-          '-y'
+          '-y',
+          '-shortest'
         ];
         
         // Handle audio: map audio from video if present, or add silent audio if needed
         if (finalAudioLabel) {
           outputOpts.push(`-map ${finalAudioLabel.includes(':') ? finalAudioLabel : `[${finalAudioLabel}]`}`);
           outputOpts.push('-c:a aac');
-        } else if (mediaType === 'video') {
+        } else {
           outputOpts.push('-map 0:a?');
           outputOpts.push('-c:a aac');
-        } else {
-          // Photo mode: add duration
-          outputOpts.push(`-t ${durationSec}`);
         }
 
         if (encoderToUse === 'libx264') {
@@ -1200,14 +1190,7 @@ ipcMain.handle('render-editor', async (event, options) => {
           .on('progress', (progress) => {
             if (mainWindow) {
               let percent = progress.percent || 0;
-              // Progress tracking logic
-              if ((!percent || percent <= 0) && progress.timemark && mediaType === 'photo') {
-                const parts = progress.timemark.split(':');
-                if (parts.length >= 3) {
-                  const currentSecs = parseFloat(parts[0]) * 3600 + parseFloat(parts[1]) * 60 + parseFloat(parts[2]);
-                  percent = (currentSecs / durationSec) * 100;
-                }
-              }
+
 
               mainWindow.webContents.send('editor-render-progress', {
                 percent: Math.min(Math.max(percent, 0), 100),
@@ -1710,5 +1693,105 @@ ipcMain.handle('admin:revokeKey', async (event, { token, key }) => {
     throw new Error('Key tidak ditemukan');
   } catch (e) {
     return { success: false, error: e.message };
+  }
+});
+
+// ========== PHOTO TO VIDEO ==========
+ipcMain.handle('render-photo-to-video', async (event, options) => {
+  isRenderCanceled = false;
+  const { photoPath, outputPath } = options;
+
+  if (!photoPath || !outputPath) {
+    throw new Error('Foto input dan output path wajib diisi!');
+  }
+
+  isRendering = true;
+  // Generate random duration between 10 and 15 seconds
+  const durationSec = Math.floor(Math.random() * 6) + 10;
+
+  try {
+    let currentEncoder = detectBestEncoder();
+    
+    const runFFmpegPhoto = (encoderToUse) => {
+      return new Promise((resolve, reject) => {
+        let command = ffmpeg();
+        activeFFmpegCommand = command;
+        
+        command.input(photoPath).inputOptions(['-loop', '1', '-framerate', '30']);
+        
+        let outputOpts = [
+          `-c:v ${encoderToUse}`,
+          '-vf', 'format=yuv420p,scale=trunc(iw/2)*2:trunc(ih/2)*2',
+          '-threads', '0',
+          '-y',
+          `-t`, `${durationSec}`
+        ];
+
+        if (encoderToUse === 'libx264') {
+          outputOpts.push('-preset', 'ultrafast');
+        } else if (encoderToUse === 'h264_nvenc') {
+          outputOpts.push('-preset', 'p4');
+        }
+
+        command
+          .outputOptions(outputOpts)
+          .on('progress', (progress) => {
+            if (mainWindow) {
+              let percent = progress.percent || 0;
+              if ((!percent || percent <= 0) && progress.timemark) {
+                const parts = progress.timemark.split(':');
+                if (parts.length >= 3) {
+                  const currentSecs = parseFloat(parts[0]) * 3600 + parseFloat(parts[1]) * 60 + parseFloat(parts[2]);
+                  percent = (currentSecs / durationSec) * 100;
+                }
+              }
+              mainWindow.webContents.send('photo-render-progress', {
+                percent: Math.min(Math.max(percent, 0), 100),
+                timemark: progress.timemark
+              });
+            }
+          })
+          .save(outputPath)
+          .on('end', () => {
+            activeFFmpegCommand = null;
+            resolve({ outputPath, duration: durationSec });
+          })
+          .on('error', (err, stdout, stderr) => {
+            activeFFmpegCommand = null;
+            const logPath = path.join(app.getPath('userData'), 'ffmpeg-error.log');
+            const logContent = stderr || err.message || '';
+            fs.writeFileSync(logPath, logContent);
+            console.log("Full FFmpeg error saved to:", logPath);
+            if (err.message.includes('SIGKILL') || isRenderCanceled) {
+              if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+              reject(new Error('Dibatalkan pengguna'));
+            } else {
+              const tailLog = logContent.split('\n').slice(-15).join('\n');
+              reject(new Error(`FFmpeg error (log: ${logPath})\n\nDetail:\n${tailLog}`));
+            }
+          });
+      });
+    };
+
+    let result;
+    try {
+      result = await runFFmpegPhoto(currentEncoder);
+    } catch (err) {
+      if (currentEncoder !== 'libx264') {
+        console.log(`Render GPU (${currentEncoder}) gagal, mencoba ulang secara otomatis dengan CPU (libx264)...`);
+        result = await runFFmpegPhoto('libx264');
+      } else {
+        throw err;
+      }
+    }
+    return result;
+  } catch (error) {
+    if (isRenderCanceled) {
+      throw new Error('Dibatalkan pengguna');
+    }
+    throw error;
+  } finally {
+    isRendering = false;
+    activeFFmpegCommand = null;
   }
 });

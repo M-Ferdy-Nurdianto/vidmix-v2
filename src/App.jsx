@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import VideoEditor from './components/Editor/VideoEditor';
+import EditorView from './components/Editor/EditorView';
 import Mixer from './components/Mixer/Mixer';
 import SpectrumGenerator from './components/SpectrumGenerator/SpectrumGenerator';
 import RemoveBG from './components/RemoveBG/RemoveBG';
+import PhotoToVideo from './components/PhotoToVideo/PhotoToVideo';
 import LicenseGate from './components/License/LicenseGate';
 import LicenseInfo from './components/License/LicenseInfo';
 import AdminPanel from './components/Admin/AdminPanel';
@@ -10,7 +11,7 @@ import OpeningScreen from './components/OpeningScreen';
 import CriticalErrorOverlay from './components/CriticalErrorOverlay';
 import GuideModal from './components/GuideModal';
 import toast, { Toaster, ToastBar } from 'react-hot-toast';
-import { Clapperboard, Music, Scissors, Globe, BookOpen } from 'lucide-react';
+import { Clapperboard, Music, Scissors, Globe, BookOpen, ImagePlay } from 'lucide-react';
 import { playLoudSuccessSound } from './utils/toast-helper';
 import { useLanguage } from './contexts/LanguageContext';
 
@@ -92,8 +93,7 @@ export default function App() {
 
   const [isSuccess, setIsSuccess] = useState(false);
   const [lastSuccessFolder, setLastSuccessFolder] = useState('');
-  const [editingVideoId, setEditingVideoId] = useState(null);
-
+  
   useEffect(() => {
     window.api.getConfig().then(config => {
       if (config.lastOutputDir) setOutputDir(config.lastOutputDir);
@@ -299,6 +299,18 @@ export default function App() {
             >
               <Scissors className="w-6 h-6" strokeWidth={2.5} /> {t('removeBg')}
             </button>
+            <button 
+              onClick={() => setView('phototovideo')}
+              className={`px-6 py-2 font-black border-4 border-black text-xl transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-1 active:translate-y-1 active:shadow-none flex items-center gap-2 ${view === 'phototovideo' ? 'bg-[#FFE500]' : 'bg-white'}`}
+            >
+              <ImagePlay className="w-6 h-6" strokeWidth={2.5} /> {t('photoToVideo')}
+            </button>
+            <button 
+              onClick={() => setView('editor')}
+              className={`px-6 py-2 font-black border-4 border-black text-xl transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-1 active:translate-y-1 active:shadow-none flex items-center gap-2 ${view === 'editor' ? 'bg-[#FF90E8]' : 'bg-white'}`}
+            >
+              <Clapperboard className="w-6 h-6" strokeWidth={2.5} /> {t('videoEditor')}
+            </button>
             
             <button
               onClick={() => setShowGuide(true)}
@@ -319,37 +331,34 @@ export default function App() {
             <LicenseInfo />
           </div>
 
-          {view === 'removebg' ? (
+          {view === 'phototovideo' ? (
+            <PhotoToVideo />
+          ) : view === 'editor' ? (
+            <EditorView 
+              outputDir={outputDir} 
+              handleSelectFolder={handleSelectFolder} 
+              allowOverwrite={allowOverwrite} 
+            />
+          ) : view === 'removebg' ? (
             <RemoveBG />
           ) : view === 'spectrum' ? (
             <SpectrumGenerator />
           ) : (
-            <>
-              <div style={{ display: editingVideoId ? 'none' : 'block' }}>
-                <Mixer 
-                  videos={videos} setVideos={setVideos}
-                  audios={audios} setAudios={setAudios}
-                  outputDir={outputDir} setOutputDir={setOutputDir}
-                  customName={customName} setCustomName={setCustomName}
-                  loopPreset={loopPreset} setLoopPreset={setLoopPreset}
-                  customMinutes={customMinutes} setCustomMinutes={setCustomMinutes}
-                  watermark={watermark} setWatermark={setWatermark}
-                  allowOverwrite={allowOverwrite} setAllowOverwrite={setAllowOverwrite}
-                  audioOrderType={audioOrderType} setAudioOrderType={setAudioOrderType}
-                  compressionLevel={compressionLevel} setCompressionLevel={setCompressionLevel}
-                  isProcessing={isProcessing} progressData={progressData} elapsedMs={elapsedMs}
-                  isSuccess={isSuccess} setIsSuccess={setIsSuccess} lastSuccessFolder={lastSuccessFolder}
-                  handleSelectFolder={handleSelectFolder} handleDrop={handleDrop} handleDragOver={handleDragOver} handleGenerate={handleGenerate}
-                  setEditingVideoId={setEditingVideoId}
-                />
-              </div>
-              <VideoEditor 
-                videos={videos} 
-                setVideos={setVideos} 
-                editingVideoId={editingVideoId} 
-                setEditingVideoId={setEditingVideoId} 
-              />
-            </>
+            <Mixer 
+              videos={videos} setVideos={setVideos}
+              audios={audios} setAudios={setAudios}
+              outputDir={outputDir} setOutputDir={setOutputDir}
+              customName={customName} setCustomName={setCustomName}
+              loopPreset={loopPreset} setLoopPreset={setLoopPreset}
+              customMinutes={customMinutes} setCustomMinutes={setCustomMinutes}
+              watermark={watermark} setWatermark={setWatermark}
+              allowOverwrite={allowOverwrite} setAllowOverwrite={setAllowOverwrite}
+              audioOrderType={audioOrderType} setAudioOrderType={setAudioOrderType}
+              compressionLevel={compressionLevel} setCompressionLevel={setCompressionLevel}
+              isProcessing={isProcessing} progressData={progressData} elapsedMs={elapsedMs}
+              isSuccess={isSuccess} setIsSuccess={setIsSuccess} lastSuccessFolder={lastSuccessFolder}
+              handleSelectFolder={handleSelectFolder} handleDrop={handleDrop} handleDragOver={handleDragOver} handleGenerate={handleGenerate}
+            />
           )}
           
           {/* Opening Screen (dimuat SETELAH lolos LicenseGate) */}

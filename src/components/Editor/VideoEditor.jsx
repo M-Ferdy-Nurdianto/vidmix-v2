@@ -8,13 +8,25 @@ export default function VideoEditor({
   videos,
   setVideos,
   editingVideoId,
-  setEditingVideoId
+  setEditingVideoId,
+  setView
 }) {
   const [selectedLayerId, setSelectedLayerId] = useState(null);
   const [editingLayerNameId, setEditingLayerNameId] = useState(null);
   const [draggedLayerIndex, setDraggedLayerIndex] = useState(null);
   const [dragOverLayerIndex, setDragOverLayerIndex] = useState(null);
   const [availableGifs, setAvailableGifs] = useState([]);
+
+  useEffect(() => {
+    if (editingVideoId) {
+      const vid = videos.find(v => v.id === editingVideoId);
+      if (vid && vid.path && /\.(jpg|jpeg|png|webp|bmp)$/i.test(vid.path)) {
+        toast.error("Foto tidak bisa diedit di sini, gunakan menu Foto ke Video");
+        setEditingVideoId(null);
+        if (setView) setView('phototovideo');
+      }
+    }
+  }, [editingVideoId, videos, setEditingVideoId, setView]);
 
   useEffect(() => {
     if (window.api && window.api.getGifs) {
@@ -111,7 +123,7 @@ export default function VideoEditor({
                 onClick={async () => {
                   try {
                     const result = await window.api.selectMediaFile();
-                    if (result && result.mediaType === 'photo') {
+                    if (result) {
                       const newLayer = { id: Date.now().toString(), type: result.path.toLowerCase().endsWith('.gif') ? 'sticker' : 'image', src: result.path, x: 50, y: 50, scale: 1, rotation: 0, zIndex: (videos.find(v => v.id === editingVideoId)?.layers.length || 0) + 1 };
                       setVideos(prev => prev.map(v => v.id === editingVideoId ? { ...v, layers: [...v.layers, newLayer] } : v));
                       setSelectedLayerId(newLayer.id);
@@ -231,7 +243,7 @@ export default function VideoEditor({
                           onClick={async () => {
                             try {
                               const result = await window.api.selectMediaFile();
-                              if (result && result.mediaType === 'photo') {
+                              if (result) {
                                 setVideos(prev => prev.map(v => v.id === editingVideoId ? {
                                   ...v, layers: v.layers.map(l => l.id === wmLayer.id ? { ...l, src: result.path } : l)
                                 } : v));
@@ -260,7 +272,7 @@ export default function VideoEditor({
                       onClick={async () => {
                         try {
                           const result = await window.api.selectMediaFile();
-                          if (result && result.mediaType === 'photo') {
+                          if (result) {
                             const newLayer = { id: Date.now().toString(), type: 'watermark', name: `Watermark Utama`, src: result.path, x: 90, y: 10, scale: 0.3, rotation: 0, zIndex: 9000 + (currentVideo?.layers.length || 0) + 1 };
                             setVideos(prev => prev.map(v => v.id === editingVideoId ? { ...v, layers: [...v.layers, newLayer] } : v));
                             setSelectedLayerId(newLayer.id);
@@ -415,7 +427,7 @@ export default function VideoEditor({
           <div className="w-full h-full flex items-center justify-center">
             <LayerCanvas 
               mediaPath={videos.find(v => v.id === editingVideoId)?.path}
-              mediaType={videos.find(v => v.id === editingVideoId)?.path?.match(/\.(jpg|jpeg|png|webp|bmp)$/i) ? 'photo' : 'video'}
+              mediaType="video"
               layers={videos.find(v => v.id === editingVideoId)?.layers || []}
               setLayers={(newLayers) => {
                 setVideos(prev => prev.map(v => v.id === editingVideoId ? { ...v, layers: typeof newLayers === 'function' ? newLayers(v.layers) : newLayers } : v));

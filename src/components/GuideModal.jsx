@@ -6,7 +6,7 @@ export default function GuideModal({ onClose }) {
   const { t } = useLanguage();
 
   return (
-    <div className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-9999 bg-black/80 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in duration-200">
       <div className="bg-[#FFE500] border-8 border-black p-8 shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] max-w-4xl w-full h-[85vh] flex flex-col animate-in zoom-in-95 duration-200 relative">
         <button 
           onClick={onClose}
@@ -16,7 +16,7 @@ export default function GuideModal({ onClose }) {
         </button>
 
         <h2 className="text-4xl font-black mb-6 flex items-center gap-3 border-b-8 border-black pb-4 pr-12">
-          <BookOpen className="w-12 h-12 flex-shrink-0" />
+          <BookOpen className="w-12 h-12 shrink-0" />
           {t('guideTitle') || "VIDMIX V2 COMPLETE GUIDE"}
         </h2>
         
@@ -62,6 +62,29 @@ export default function GuideModal({ onClose }) {
               <p className="border-b-2 border-black/20 pb-2">{t('guideRemoveBgStep1')}</p>
               <p className="border-b-2 border-black/20 pb-2">{t('guideRemoveBgStep2')}</p>
               <p className="pt-2">{t('guideRemoveBgStep3')}</p>
+            </div>
+            <div className="mt-3 bg-zinc-100 border-l-4 border-black pl-3 py-2 font-bold text-sm">
+              {t('guideRemoveBgNote')}
+            </div>
+          </section>
+
+          <section>
+            <h3 className="text-2xl font-black bg-black text-white inline-block px-3 py-1 mb-3">4. {t('guideEditorTitle')}</h3>
+            <div className="space-y-4 font-bold text-sm bg-blue-100 border-4 border-black p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+              <p className="border-b-2 border-black/20 pb-2">{t('guideEditorStep1')}</p>
+              <p className="border-b-2 border-black/20 pb-2">{t('guideEditorStep2')}</p>
+              <p className="border-b-2 border-black/20 pb-2">{t('guideEditorStep3')}</p>
+              <p className="border-b-2 border-black/20 pb-2">{t('guideEditorStep4')}</p>
+              <p className="pt-2">{t('guideEditorStep5')}</p>
+            </div>
+          </section>
+
+          <section>
+            <h3 className="text-2xl font-black bg-black text-white inline-block px-3 py-1 mb-3">{t('guideTroubleshootTitle')}</h3>
+            <div className="space-y-2 font-bold text-sm">
+              <p className="bg-zinc-100 border-l-4 border-black pl-3 py-2">{t('guideTroubleshootRenderFailed')}</p>
+              <p className="bg-zinc-100 border-l-4 border-black pl-3 py-2">{t('guideTroubleshootStickerMismatch')}</p>
+              <p className="bg-zinc-100 border-l-4 border-black pl-3 py-2">{t('guideTroubleshootGpuNotDetected')}</p>
             </div>
           </section>
 

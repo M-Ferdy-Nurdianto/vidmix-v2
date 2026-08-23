@@ -16,8 +16,7 @@ export default function Mixer({
   compressionLevel, setCompressionLevel,
   isProcessing, progressData, elapsedMs,
   isSuccess, setIsSuccess, lastSuccessFolder,
-  handleSelectFolder, handleDrop, handleDragOver, handleGenerate,
-  setEditingVideoId
+  handleSelectFolder, handleDrop, handleDragOver, handleGenerate
 }) {
   const { t } = useLanguage();
   const [draggedItemIndex, setDraggedItemIndex] = useState(null);
@@ -185,12 +184,6 @@ export default function Mixer({
                           )}
                         </div>
                         <div className="flex gap-1 shrink-0">
-                          <button 
-                            onClick={() => setEditingVideoId(vid.id)}
-                            className="bg-[#FF90E8] border-2 border-black px-2 py-1 text-xs font-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5"
-                          >
-                            {t('editBtn')}
-                          </button>
                           <button 
                             onClick={(e) => {
                               e.stopPropagation();

@@ -67,25 +67,25 @@ export default function LayerControlPanel({ selectedLayerId, layers, setLayers, 
  <div className="flex gap-2">
  <button 
  onClick={() => updateLayer({ textAlign: 'left' })}
- className={`flex-1 flex justify-center items-center py-2 border-4 border-black transition-colors shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-y-[2px] hover:shadow-none active:bg-black active:text-white ${layer.textAlign === 'left' ? 'bg-[#FFE500]' : 'bg-zinc-100'}`}
+ className={`flex-1 flex justify-center items-center py-2 border-4 border-black transition-colors shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-y-0.5 hover:shadow-none active:bg-black active:text-white ${layer.textAlign === 'left' ? 'bg-[#FFE500]' : 'bg-zinc-100'}`}
  >
  <AlignLeft size={18} />
  </button>
  <button 
  onClick={() => updateLayer({ textAlign: 'center' })}
- className={`flex-1 flex justify-center items-center py-2 border-4 border-black transition-colors shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-y-[2px] hover:shadow-none active:bg-black active:text-white ${(!layer.textAlign || layer.textAlign === 'center') ? 'bg-[#FFE500]' : 'bg-zinc-100'}`}
+ className={`flex-1 flex justify-center items-center py-2 border-4 border-black transition-colors shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-y-0.5 hover:shadow-none active:bg-black active:text-white ${(!layer.textAlign || layer.textAlign === 'center') ? 'bg-[#FFE500]' : 'bg-zinc-100'}`}
  >
  <AlignCenter size={18} />
  </button>
  <button 
  onClick={() => updateLayer({ textAlign: 'right' })}
- className={`flex-1 flex justify-center items-center py-2 border-4 border-black transition-colors shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-y-[2px] hover:shadow-none active:bg-black active:text-white ${layer.textAlign === 'right' ? 'bg-[#FFE500]' : 'bg-zinc-100'}`}
+ className={`flex-1 flex justify-center items-center py-2 border-4 border-black transition-colors shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-y-0.5 hover:shadow-none active:bg-black active:text-white ${layer.textAlign === 'right' ? 'bg-[#FFE500]' : 'bg-zinc-100'}`}
  >
  <AlignRight size={18} />
  </button>
  <button 
  onClick={() => updateLayer({ textAlign: 'justify' })}
- className={`flex-1 flex justify-center items-center py-2 border-4 border-black transition-colors shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-y-[2px] hover:shadow-none active:bg-black active:text-white ${layer.textAlign === 'justify' ? 'bg-[#FFE500]' : 'bg-zinc-100'}`}
+ className={`flex-1 flex justify-center items-center py-2 border-4 border-black transition-colors shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-y-0.5 hover:shadow-none active:bg-black active:text-white ${layer.textAlign === 'justify' ? 'bg-[#FFE500]' : 'bg-zinc-100'}`}
  title="Justify (Rendered as Left in Video)"
  >
  <AlignJustify size={18} />

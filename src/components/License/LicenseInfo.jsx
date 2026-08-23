@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
 import { ShieldCheck, ShieldAlert, X, Key, CalendarDays, Monitor } from "lucide-react";
+import { useLanguage } from "../../contexts/LanguageContext";
 
 export default function LicenseInfo() {
+  const { t, lang } = useLanguage();
   const [info, setInfo] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showDetail, setShowDetail] = useState(false);
@@ -42,28 +44,25 @@ export default function LicenseInfo() {
 
   return (
     <div className="relative ml-auto font-mono select-none" ref={panelRef}>
-      {/* Badge trigger */}
       <button
         onClick={() => setShowDetail((v) => !v)}
         className={`flex items-center gap-2 px-4 py-2 border-4 border-black font-black uppercase text-sm shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-1 hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] active:translate-y-1 active:shadow-none transition-all ${badgeBg} ${textColor}`}
-        title="Info Lisensi"
+        title={t("licenseInfoTooltip")}
       >
         {isExpiringSoon ? (
           <ShieldAlert className="w-5 h-5" strokeWidth={3} />
         ) : (
           <ShieldCheck className="w-5 h-5" strokeWidth={3} />
         )}
-        <span className="tracking-widest">AKTIF</span>
+        <span className="tracking-widest">{t("licenseInfoActive")}</span>
       </button>
 
-      {/* Detail panel */}
       {showDetail && (
         <div className="absolute top-full right-0 mt-4 w-80 bg-white border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] z-50">
-          {/* Header */}
           <div className={`${badgeBg} border-b-4 border-black p-3 flex items-center justify-between`}>
             <div className="flex items-center gap-2 font-black uppercase tracking-wider text-sm">
               <ShieldCheck className="w-5 h-5" strokeWidth={3} />
-              <span>Info Lisensi</span>
+              <span>{t("licenseInfoPanelTitle")}</span>
             </div>
             <button 
               onClick={() => setShowDetail(false)} 
@@ -74,38 +73,36 @@ export default function LicenseInfo() {
           </div>
 
           <div className="p-4 space-y-3 bg-[#F4F4F0]">
-            {/* Info rows */}
             <div className="bg-white border-4 border-black p-3 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] space-y-3">
-              <InfoRow icon={<Key className="w-4 h-4" />} label="Versi" value="PREMIUM" />
+              <InfoRow icon={<Key className="w-4 h-4" />} label={t("licenseInfoVersion")} value="PREMIUM" />
               <InfoRow
                 icon={<CalendarDays className="w-4 h-4" />}
-                label="Status"
-                value={isExpiringSoon ? "Segera Berakhir" : "Aktif"}
+                label={t("licenseInfoStatus")}
+                value={isExpiringSoon ? t("licenseInfoStatusExpiringSoon") : t("licenseInfoStatusActive")}
                 valueColor={isExpiringSoon ? "text-red-500" : "text-green-600"}
               />
               <InfoRow
                 icon={<CalendarDays className="w-4 h-4" />}
-                label="Aktivasi"
-                value={new Date(info.activatedAt).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
+                label={t("licenseInfoActivatedAt")}
+                value={new Date(info.activatedAt).toLocaleDateString(lang === "id" ? "id-ID" : "en-US", { day: "numeric", month: "short", year: "numeric" })}
               />
             </div>
 
             <div className="bg-white border-4 border-black p-3 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] space-y-2">
               <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-zinc-600">
                 <Monitor className="w-4 h-4" strokeWidth={3} />
-                <span>Device ID</span>
+                <span>{t("licenseInfoDeviceId")}</span>
               </div>
               <p className="font-mono text-xs bg-zinc-100 p-2 border-2 border-black break-all font-bold">
                 {info.deviceId ? info.deviceId : "-"}
               </p>
             </div>
 
-            {/* Warning if expiring soon */}
             {isExpiringSoon && (
               <div className="bg-red-400 border-4 border-black p-3 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex items-start gap-2 mt-2">
                 <ShieldAlert className="w-5 h-5 mt-0.5 shrink-0" strokeWidth={3} />
                 <p className="text-xs font-bold leading-tight">
-                  Lisensi Anda akan segera habis. Hubungi developer untuk memperpanjang.
+                  {t("licenseInfoExpiringWarning")}
                 </p>
               </div>
             )}
