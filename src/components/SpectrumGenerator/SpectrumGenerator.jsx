@@ -3,17 +3,19 @@ import { Music, Play, Square, Download, Settings, Image as ImageIcon, FolderOpen
 import { showToast, playLoudSuccessSound } from '../../utils/toast-helper';
 
 import { RefreshCw, CheckCircle2 } from 'lucide-react';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 function ExportProcessingModal({ progress, stage }) {
+  const { t } = useLanguage();
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-6">
       <div className="bg-[#FFE500] border-4 border-black p-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] max-w-xl w-full transform animate-in zoom-in-95 duration-200">
         <h2 className="text-3xl font-black mb-4 flex items-center gap-3">
           <RefreshCw className="animate-spin w-8 h-8" />
-          SEDANG MERENDER...
+          {t('renderingVideo')}
         </h2>
         <p className="font-bold text-sm mb-6 border-l-4 border-black pl-3 py-1 bg-purple-400">
-          Proses FFmpeg sedang berjalan. Proses ini mungkin memakan waktu agak lama. Mohon jangan menutup jendela ini.
+          {t('loadingDesc')}
         </p>
         
         <div className="border-4 border-black bg-yellow-400 h-14 w-full relative overflow-hidden shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
@@ -22,12 +24,12 @@ function ExportProcessingModal({ progress, stage }) {
             style={{ width: `${progress}%` }}
           />
           <div className="absolute inset-0 flex items-center justify-center font-black text-xl z-10 mix-blend-difference text-white">
-            {progress > 0 ? `SEDANG MEMPROSES... ${Math.round(progress)}%` : 'MENYIAPKAN RENDER...'}
+            {progress > 0 ? `${t('loadingProcessing')} ${Math.round(progress)}%` : t('loadingPreparing')}
           </div>
         </div>
         
         <div className="mt-6 flex justify-between items-center font-black bg-black text-white px-4 py-2">
-          <span>STATUS: PROCESSING</span>
+          <span>{t('processingStatus')}</span>
           <span>{stage}</span>
         </div>
       </div>
@@ -36,6 +38,7 @@ function ExportProcessingModal({ progress, stage }) {
 }
 
 function ExportSuccessModal({ onOpenFolder, onClose, lastOutputFolder }) {
+  const { t } = useLanguage();
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-6">
       <div className="bg-[#00FF55] border-4 border-black p-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] max-w-xl w-full transform animate-in zoom-in-95 duration-200 relative">
@@ -47,10 +50,10 @@ function ExportSuccessModal({ onOpenFolder, onClose, lastOutputFolder }) {
         </button>
         <h2 className="text-4xl font-black mb-4 flex items-center gap-3">
           <CheckCircle2 className="w-10 h-10" />
-          BERHASIL!
+          {t('successTitle')}
         </h2>
         <p className="font-bold text-base mb-6 border-l-4 border-black pl-3 py-2 bg-green-400">
-          Spectrum audio Anda telah selesai dirender dengan aman ke dalam folder!
+          {t('successDescSpectrum')}
         </p>
         
         <button
@@ -61,7 +64,7 @@ function ExportSuccessModal({ onOpenFolder, onClose, lastOutputFolder }) {
           className="w-full py-4 font-black text-lg border-4 border-black bg-[#FFE500] hover:bg-[#FFD700] shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-x-1 active:translate-y-1 transition-all flex items-center justify-center gap-2"
         >
           <FolderOpen className="w-6 h-6" />
-          BUKA FOLDER OUTPUT
+          {t('openFolder')}
         </button>
       </div>
     </div>
@@ -69,6 +72,7 @@ function ExportSuccessModal({ onOpenFolder, onClose, lastOutputFolder }) {
 }
 
 export default function SpectrumGenerator() {
+  const { t } = useLanguage();
   const [audioPath, setAudioPath] = useState('');
   const [audioName, setAudioName] = useState('');
   const [isPlaying, setIsPlaying] = useState(false);
@@ -161,8 +165,8 @@ export default function SpectrumGenerator() {
       const elapsed = Date.now() - start;
       const pct = Math.min(95, (elapsed / estimatedMs) * 100);
       setExportProgress(pct);
-      if (pct > 30 && pct <= 60) setExportStage('Merender frame...');
-      else if (pct > 60) setExportStage('Menyusun video...');
+      if (pct > 30 && pct <= 60) setExportStage(t('loadingRenderingFrame'));
+      else if (pct > 60) setExportStage(t('loadingMerging'));
     }, 150);
   };
 
@@ -700,7 +704,7 @@ export default function SpectrumGenerator() {
 
     setIsExporting(true);
     setExportProgress(0);
-    setExportStage('Menyiapkan...');
+    setExportStage(t('loadingPreparing'));
 
     try {
       // Stop any existing playback first
@@ -871,7 +875,7 @@ export default function SpectrumGenerator() {
             
             <div className="bg-[#FFE500] border-4 border-black p-3 space-y-4">
               <div>
-                <label className="text-[10px] font-black uppercase block mb-1">Bentuk (Shape)</label>
+                <label className="text-[10px] font-black uppercase block mb-1">{t('spectrumShapeTitle')}</label>
                 <div className="grid grid-cols-2 lg:grid-cols-3 gap-1">
                   {['linear', 'circular', 'waveform', 'symmetric', 'dots'].map(s => (
                     <button
@@ -1175,3 +1179,4 @@ export default function SpectrumGenerator() {
     </>
   );
 }
+

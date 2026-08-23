@@ -7,6 +7,7 @@ const https = require('https');
 const ffmpeg = require('fluent-ffmpeg');
 const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path.replace('app.asar', 'app.asar.unpacked');
 const { execSync } = require('child_process');
+const imageProcessor = require('./imageProcessor');
 
 ffmpeg.setFfmpegPath(ffmpegPath);
 
@@ -393,6 +394,15 @@ ipcMain.handle('upload-gif', async () => {
     try {
       const sourcePath = result.filePaths[0];
       const fileName = path.basename(sourcePath);
+      const ext = path.extname(sourcePath).toLowerCase();
+      const isVideo = ['.mp4', '.mov', '.webm'].includes(ext);
+
+      if (!isVideo) {
+        const validation = await imageProcessor.validateImageFile(sourcePath);
+        if (!validation.valid) {
+          throw new Error('Gagal memproses gambar: ' + validation.error);
+        }
+      }
       
       const userDataGifsPath = path.join(app.getPath('userData'), 'UserGifs');
       if (!fs.existsSync(userDataGifsPath)) {
@@ -401,6 +411,15 @@ ipcMain.handle('upload-gif', async () => {
       
       const destPath = path.join(userDataGifsPath, fileName);
       fs.copyFileSync(sourcePath, destPath);
+      
+      if (!isVideo) {
+        const thumbnailsPath = path.join(userDataGifsPath, '.thumbnails');
+        if (!fs.existsSync(thumbnailsPath)) {
+          fs.mkdirSync(thumbnailsPath, { recursive: true });
+        }
+        const thumbDestPath = path.join(thumbnailsPath, fileName + '.png');
+        await imageProcessor.generateThumbnail(destPath, thumbDestPath);
+      }
       
       return destPath.replace(/\\/g, '/');
     } catch (error) {
@@ -732,8 +751,24 @@ ipcMain.handle('start-render', async (event, options) => {
   isRendering = true;
   try {
     if (watermark) {
-      watermark = await prepareLoopableMedia(watermark);
-      if (watermark !== options.watermark) tempFiles.push(watermark);
+      const ext = path.extname(watermark).toLowerCase();
+      if (['.webm', '.mp4', '.mov'].includes(ext)) {
+        watermark = await prepareLoopableMedia(watermark);
+        if (watermark !== options.watermark) tempFiles.push(watermark);
+      } else if (ext !== '.gif') {
+        try {
+          const tempDir = os.tmpdir();
+          const tempNormalizedFile = path.join(tempDir, `vidmix_norm_wm_${Date.now()}_${Math.random().toString(36).substr(2, 5)}.png`);
+          await imageProcessor.normalizeStickerImage(watermark, tempNormalizedFile);
+          watermark = tempNormalizedFile;
+          tempFiles.push(watermark);
+        } catch (error) {
+          console.error(`Gagal menormalisasi watermark ${watermark}, menggunakan file asli. Error:`, error.message);
+        }
+      } else {
+        watermark = await prepareLoopableMedia(watermark);
+        if (watermark !== options.watermark) tempFiles.push(watermark);
+      }
     }
 
     for (let i = 0; i < videos.length; i++) {
@@ -750,6 +785,17 @@ ipcMain.handle('start-render', async (event, options) => {
             const originalSrc = layer.src;
             layer.src = await prepareLoopableMedia(layer.src);
             if (layer.src !== originalSrc) tempFiles.push(layer.src);
+          } else if (ext !== '.gif') {
+            const originalSrc = layer.src;
+            try {
+              const tempDir = os.tmpdir();
+              const tempNormalizedFile = path.join(tempDir, `vidmix_norm_${Date.now()}_${Math.random().toString(36).substr(2, 5)}.png`);
+              await imageProcessor.normalizeStickerImage(originalSrc, tempNormalizedFile);
+              layer.src = tempNormalizedFile;
+              tempFiles.push(layer.src);
+            } catch (error) {
+              console.error(`Gagal menormalisasi gambar ${originalSrc}, menggunakan file asli. Error:`, error.message);
+            }
           }
         }
       }
@@ -1030,6 +1076,17 @@ ipcMain.handle('render-editor', async (event, options) => {
           const originalSrc = layer.src;
           layer.src = await prepareLoopableMedia(layer.src);
           if (layer.src !== originalSrc) tempFiles.push(layer.src);
+        } else if (ext !== '.gif') {
+          const originalSrc = layer.src;
+          try {
+            const tempDir = os.tmpdir();
+            const tempNormalizedFile = path.join(tempDir, `vidmix_norm_${Date.now()}_${Math.random().toString(36).substr(2, 5)}.png`);
+            await imageProcessor.normalizeStickerImage(originalSrc, tempNormalizedFile);
+            layer.src = tempNormalizedFile;
+            tempFiles.push(layer.src);
+          } catch (error) {
+            console.error(`Gagal menormalisasi gambar ${originalSrc}, menggunakan file asli. Error:`, error.message);
+          }
         }
       }
     }

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import { Upload, Download, Trash2, Wand2, Pipette, RotateCcw, ZoomIn, ZoomOut, Layers, ImageIcon, CheckCircle2, Loader2, X, Video } from "lucide-react";
 import { showToast, playLoudSuccessSound } from '../../utils/toast-helper';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 function colorDistance(r1,g1,b1,r2,g2,b2){return Math.sqrt((r1-r2)**2+(g1-g2)**2+(b1-b2)**2);}
 
@@ -26,6 +27,7 @@ function featherEdge(alpha,width,height,radius){
 }
 
 export default function RemoveBG(){
+  const { t } = useLanguage();
   const[image,setImage]=useState(null);
   const[originalData,setOriginalData]=useState(null);
   const[currentData,setCurrentData]=useState(null);
@@ -291,7 +293,7 @@ export default function RemoveBG(){
 
           <div className="flex-1 bg-[#FF3CAC] border-4 border-black p-2 flex flex-col justify-center items-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] min-h-75 overflow-hidden">
             <div className="border-4 border-black w-full aspect-video relative overflow-hidden flex items-center justify-center bg-[#1a1a2e]" style={{backgroundImage:checkered?CHECKER:"none", cursor:mode==="eraser"?"crosshair":mode==="picker"?"cell":"pointer"}}>
-            {isProcessing&&<div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-6"><div className="bg-[#00F0FF] border-4 border-black p-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] max-w-xl w-full transform animate-in zoom-in-95 duration-200"><h2 className="text-3xl font-black mb-4 flex items-center gap-3"><Loader2 className="w-8 h-8 animate-spin"/>{isVideo ? 'SEDANG MEMPROSES...' : 'PROCESSING...'}</h2><p className="font-bold text-sm mb-6 border-l-4 border-black pl-3 py-1 bg-white">{isVideo ? 'Proses konversi format dan penghapusan background dengan FFmpeg sedang berjalan.' : 'Harap tunggu, operasi magic fill / auto bg sedang berlangsung...'}</p>{isVideo && <div className="border-4 border-black bg-white h-14 w-full relative overflow-hidden shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"><div className="absolute top-0 left-0 h-full bg-[#FF3CAC] border-r-4 border-black transition-all duration-300" style={{width: `${videoProgress}%`}}/><div className="absolute inset-0 flex items-center justify-center font-black text-xl z-10 mix-blend-difference text-white">MEMPROSES... {Math.round(videoProgress)}%</div></div>}<div className="mt-6 flex justify-between items-center font-black bg-black text-white px-4 py-2"><span>STATUS: {isVideo ? 'FFMPEG' : 'CANVAS'}</span><span>{isVideo ? videoStage : 'WORKING'}</span></div></div></div>}
+            {isProcessing&&<div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-6"><div className="bg-[#00F0FF] border-4 border-black p-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] max-w-xl w-full transform animate-in zoom-in-95 duration-200"><h2 className="text-3xl font-black mb-4 flex items-center gap-3"><Loader2 className="w-8 h-8 animate-spin"/>{isVideo ? t('loadingProcessing') : t('loadingProcessing')}</h2><p className="font-bold text-sm mb-6 border-l-4 border-black pl-3 py-1 bg-white">{t('loadingDesc')}</p>{isVideo && <div className="border-4 border-black bg-white h-14 w-full relative overflow-hidden shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"><div className="absolute top-0 left-0 h-full bg-[#FF3CAC] border-r-4 border-black transition-all duration-300" style={{width: `${videoProgress}%`}}/><div className="absolute inset-0 flex items-center justify-center font-black text-xl z-10 mix-blend-difference text-white">{t('loadingProcessing')} {Math.round(videoProgress)}%</div></div>}<div className="mt-6 flex justify-between items-center font-black bg-black text-white px-4 py-2"><span>STATUS: {isVideo ? 'FFMPEG' : 'CANVAS'}</span><span>{isVideo ? videoStage : 'WORKING'}</span></div></div></div>}
             
             <div className="m-auto" style={{ width: image.width * zoom, height: image.height * zoom, overflow: 'hidden' }}>
               <canvas ref={canvasRef} style={{transform:`scale(${zoom})`,transformOrigin:"top left",imageRendering:zoom>2?"pixelated":"auto",display:"block"}}
@@ -358,3 +360,4 @@ export default function RemoveBG(){
     </div>
   );
 }
+

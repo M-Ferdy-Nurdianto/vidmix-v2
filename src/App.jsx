@@ -7,16 +7,19 @@ import LicenseGate from './components/License/LicenseGate';
 import LicenseInfo from './components/License/LicenseInfo';
 import AdminPanel from './components/Admin/AdminPanel';
 import OpeningScreen from './components/OpeningScreen';
+import CriticalErrorOverlay from './components/CriticalErrorOverlay';
+import GuideModal from './components/GuideModal';
 import toast, { Toaster, ToastBar } from 'react-hot-toast';
-import { Clapperboard, Music, Scissors } from 'lucide-react';
+import { Clapperboard, Music, Scissors, Globe, BookOpen } from 'lucide-react';
 import { playLoudSuccessSound } from './utils/toast-helper';
+import { useLanguage } from './contexts/LanguageContext';
 
 export default function App() {
   // Auto-load state dari localStorage
   const [outputDir, setOutputDir] = useState(() => localStorage.getItem('vidmix_outputDir') || '');
   const [videos, setVideos] = useState(() => JSON.parse(localStorage.getItem('vidmix_videos') || '[]'));
   const [audios, setAudios] = useState(() => JSON.parse(localStorage.getItem('vidmix_audios') || '[]'));
-  const [customName, setCustomName] = useState(() => localStorage.getItem('vidmix_customName') || 'joji');
+  const [customName, setCustomName] = useState(() => localStorage.getItem('vidmix_customName') || '');
   const [loopPreset, setLoopPreset] = useState(() => localStorage.getItem('vidmix_loopPreset') || '15m');
   const [customMinutes, setCustomMinutes] = useState(() => Number(localStorage.getItem('vidmix_customMinutes')) || 15);
   const [watermark, setWatermark] = useState(() => localStorage.getItem('vidmix_watermark') || '');
@@ -32,6 +35,10 @@ export default function App() {
   const [view, setView] = useState('mixer');
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [hasPlayedOpening, setHasPlayedOpening] = useState(false);
+  const [criticalError, setCriticalError] = useState(null);
+  const [showGuide, setShowGuide] = useState(false);
+  
+  const { lang, toggleLanguage, t } = useLanguage();
 
   useEffect(() => {
     let keySequence = '';
@@ -250,10 +257,15 @@ export default function App() {
       setIsSuccess(true);
       setLastSuccessFolder(outputDir);
     } catch (e) {
-      if (e.message.includes('RENDER_CANCELED')) {
+      const msgStr = e.message || 'Gagal melakukan render.';
+      if (msgStr.includes('RENDER_CANCELED')) {
         toast.error('Proses render dibatalkan oleh pengguna.');
+      } else if (msgStr.toLowerCase().includes('sudah ada') || msgStr.toLowerCase().includes('overwrite')) {
+        toast.error(msgStr);
+      } else if (msgStr.toLowerCase().includes('wajib diisi')) {
+        toast.error(msgStr);
       } else {
-        toast.error(e.message || 'Gagal melakukan render.');
+        setCriticalError(msgStr);
       }
     } finally {
       setIsProcessing(false);
@@ -273,20 +285,37 @@ export default function App() {
               onClick={() => setView('mixer')}
               className={`px-6 py-2 font-black border-4 border-black text-xl transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-1 active:translate-y-1 active:shadow-none flex items-center gap-2 ${view === 'mixer' ? 'bg-[#00FF55]' : 'bg-white'}`}
             >
-              <Clapperboard className="w-6 h-6 fill-current" strokeWidth={2.5} /> VIDEO MIXER
+              <Clapperboard className="w-6 h-6 fill-current" strokeWidth={2.5} /> {t('videoMixer')}
             </button>
             <button 
               onClick={() => setView('spectrum')}
               className={`px-6 py-2 font-black border-4 border-black text-xl transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-1 active:translate-y-1 active:shadow-none flex items-center gap-2 ${view === 'spectrum' ? 'bg-[#00F0FF]' : 'bg-white'}`}
             >
-              <Music className="w-6 h-6 fill-current" strokeWidth={2.5} /> SPECTRUM MAKER
+              <Music className="w-6 h-6 fill-current" strokeWidth={2.5} /> {t('spectrumMaker')}
             </button>
             <button 
               onClick={() => setView('removebg')}
               className={`px-6 py-2 font-black border-4 border-black text-xl transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-1 active:translate-y-1 active:shadow-none flex items-center gap-2 ${view === 'removebg' ? 'bg-[#FF3CAC] text-white' : 'bg-white'}`}
             >
-              <Scissors className="w-6 h-6" strokeWidth={2.5} /> REMOVE BG
+              <Scissors className="w-6 h-6" strokeWidth={2.5} /> {t('removeBg')}
             </button>
+            
+            <button
+              onClick={() => setShowGuide(true)}
+              className="ml-auto px-4 py-2 font-black border-4 border-black text-xl bg-[#00F0FF] transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-1 active:translate-y-1 active:shadow-none flex items-center gap-2"
+              title="Open Guide"
+            >
+              <BookOpen className="w-6 h-6" strokeWidth={2.5} /> GUIDE
+            </button>
+
+            <button
+              onClick={toggleLanguage}
+              className="px-4 py-2 font-black border-4 border-black text-xl bg-[#FFE500] transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-1 active:translate-y-1 active:shadow-none flex items-center gap-2"
+              title="Toggle Language"
+            >
+              <Globe className="w-6 h-6" strokeWidth={2.5} /> {lang === 'en' ? '🇬🇧 EN' : '🇮🇩 ID'}
+            </button>
+
             <LicenseInfo />
           </div>
 
@@ -333,6 +362,17 @@ export default function App() {
       {/* Secret Admin Panel is truly Global */}
       {showAdminPanel && (
         <AdminPanel onClose={() => setShowAdminPanel(false)} />
+      )}
+
+      {criticalError && (
+        <CriticalErrorOverlay 
+          errorMsg={criticalError} 
+          onClose={() => setCriticalError(null)} 
+        />
+      )}
+
+      {showGuide && (
+        <GuideModal onClose={() => setShowGuide(false)} />
       )}
 
       {/* Global Toaster */}
