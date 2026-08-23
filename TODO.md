@@ -1,9 +1,9 @@
-# Rencana Pengembangan (To-Do)
+# Roadmap (To-Do)
 
-Berikut adalah daftar fitur yang direncanakan untuk iterasi Vidmix selanjutnya bersama tim:
+Planned features and technical improvements for future iterations of Vidmix v2:
 
-- [ ] **FFmpeg Progress Bar**: Mengirim data *progress* dari `fluent-ffmpeg` melalui IPC bridge untuk ditampilkan di antarmuka pengguna React secara real-time.
-- [ ] **Pause/Cancel Render**: Menambahkan fungsi untuk membatalkan proses render (*kill process*) jika pengguna melakukan kesalahan input.
-- [ ] **Dukungan Format Media Tambahan**: Selain `.mp4` dan `.mp3`, perlu diuji dukungan ekstensi lain seperti `.mkv` dan `.wav`.
-- [ ] **Logging System**: Implementasikan sistem *logging* error otomatis (misal menggunakan `winston`) ke file teks lokal untuk kemudahan *debugging*.
-- [ ] **Auto-Update**: Konfigurasi modul `electron-updater` agar rilis pembaruan perangkat lunak bisa terunduh secara otomatis.
+- [ ] **FFmpeg Progress Bar**: Pipe progress data from `fluent-ffmpeg` via the IPC bridge to render a real-time progress bar in the React UI.
+- [ ] **Pause/Cancel Render**: Implement a process kill function to allow users to cancel ongoing renders.
+- [ ] **Extended Media Format Support**: Test and add support for `.mkv`, `.wav`, and other formats beyond `.mp4` and `.mp3`.
+- [ ] **Logging System**: Implement an automated error logging system (e.g., using `winston`) that writes to a local text file for easier debugging.
+- [ ] **Auto-Update System**: Configure the `electron-updater` module for seamless over-the-air software updates.

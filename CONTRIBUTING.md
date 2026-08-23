@@ -1,17 +1,17 @@
-# Panduan Berkontribusi
+# Contributing to Vidmix v2
 
-Terima kasih telah tertarik untuk mengembangkan Vidmix v2!
+Thank you for your interest in improving Vidmix v2! 
 
-## Standar Kode
-- Kami menggunakan arsitektur **Node.js** penuh. Pastikan baris kode Anda mengikuti konvensi JavaScript modern (ES6+).
-- Untuk UI, proyek ini menggunakan Tailwind CSS. Pertahankan konsistensi gaya desain **Neo-Brutalism**:
-  - Gunakan border tebal hitam (`border-4 border-black`).
-  - Gunakan warna-warna solid cerah (`#FFE500`, `#00F0FF`, `#FF90E8`).
-  - Gunakan gaya *box-shadow* yang tajam dan tidak *blur* (`shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]`).
+## Code Standards
+- **Tech Stack:** Node.js, Electron, React, Vite, Tailwind CSS. Ensure modern JavaScript conventions (ES6+) are followed.
+- **UI/UX Design Language:** We strictly adhere to **Neo-Brutalism**.
+  - Use thick black borders: `border-4 border-black`.
+  - Use bright solid colors: `#FFE500`, `#00F0FF`, `#FF90E8`.
+  - Use sharp, non-blurred box shadows: `shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]`.
   
-## Alur *Pull Request*
-1. Lakukan *Fork* pada repositori ini.
-2. Buat *branch* fitur Anda (`git checkout -b fitur/NamaFitur`).
-3. *Commit* perubahan Anda (`git commit -m 'Menambahkan fitur XYZ'`).
-4. *Push* ke *branch* (`git push origin fitur/NamaFitur`).
-5. Buka sebuah *Pull Request* dan jelaskan perubahan yang Anda buat secara detail.
+## Pull Request Workflow
+1. **Fork** the repository.
+2. Create a feature branch (`git checkout -b feature/YourFeatureName`).
+3. Commit your changes (`git commit -m 'Add some feature'`).
+4. Push to the branch (`git push origin feature/YourFeatureName`).
+5. Open a **Pull Request** and describe your changes in detail.
