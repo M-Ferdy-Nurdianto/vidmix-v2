@@ -457,51 +457,80 @@ function detectBestEncoder() {
   return 'libx264';
 }
 
-function getWindowsFont(fontFamily, isBold, isItalic) {
-  const basePaths = {
-    'Arial': 'arial',
-    'Calibri': 'calibri',
-    'Cambria': 'cambria',
-    'Comic Sans MS': 'comic',
-    'Consolas': 'consola',
-    'Courier New': 'cour',
-    'Georgia': 'georgia',
-    'Impact': 'impact',
-    'Lucida Console': 'lucon',
-    'Segoe UI': 'segoeui',
-    'Tahoma': 'tahoma',
-    'Times New Roman': 'times',
-    'Trebuchet MS': 'trebuc',
-    'Verdana': 'verdana'
-  };
-  let base = basePaths[fontFamily] || 'arial';
-  let suffix = '';
-  
-  if (base === 'impact') {
-    suffix = '';
-  } else if (isBold && isItalic) {
-    if (base === 'comic' || base === 'verdana') suffix = 'z';
-    else if (base === 'tahoma') suffix = 'bd';
-    else suffix = 'bi';
-  } else if (isBold) {
-    suffix = 'bd';
-  } else if (isItalic) {
-    if (base === 'trebuc') suffix = 'it';
-    else suffix = 'i';
+// Konvensi nama file font Windows TIDAK SERAGAM. Sebagian pakai suffix 'bd' buat bold
+// (arial -> arialbd.ttf), sebagian lain cuma 'b' (verdana -> verdanab.ttf, BUKAN verdanabd.ttf).
+// Salah tebak suffix = fs.existsSync gagal = diam-diam fallback ke Arial tanpa pemberitahuan.
+// Makanya di-map manual per font family, bukan pakai satu skema suffix generik.
+const WINDOWS_FONT_FILES = {
+  'Arial':          { regular: 'arial',    bold: 'arialbd',   italic: 'ariali',   boldItalic: 'arialbi'   },
+  'Calibri':        { regular: 'calibri',  bold: 'calibrib',  italic: 'calibrii', boldItalic: 'calibriz'  },
+  'Cambria':        { regular: 'cambria',  bold: 'cambriab',  italic: 'cambriai', boldItalic: 'cambriaz'  },
+  'Comic Sans MS':  { regular: 'comic',    bold: 'comicbd',   italic: 'comici',   boldItalic: 'comicz'    },
+  'Consolas':       { regular: 'consola',  bold: 'consolab',  italic: 'consolai', boldItalic: 'consolaz'  },
+  'Courier New':    { regular: 'cour',     bold: 'courbd',    italic: 'couri',    boldItalic: 'courbi'    },
+  'Georgia':        { regular: 'georgia',  bold: 'georgiab',  italic: 'georgiai', boldItalic: 'georgiaz'  },
+  'Impact':         { regular: 'impact',   bold: 'impact',    italic: 'impact',   boldItalic: 'impact'    },
+  'Lucida Console': { regular: 'lucon',    bold: 'lucon',     italic: 'lucon',    boldItalic: 'lucon'     },
+  'Segoe UI':       { regular: 'segoeui',  bold: 'segoeuib',  italic: 'segoeuii', boldItalic: 'segoeuiz'  },
+  'Tahoma':         { regular: 'tahoma',   bold: 'tahomabd',  italic: 'tahoma',   boldItalic: 'tahomabd'  },
+  'Times New Roman':{ regular: 'times',    bold: 'timesbd',   italic: 'timesi',   boldItalic: 'timesbi'   },
+  'Trebuchet MS':   { regular: 'trebuc',   bold: 'trebucbd',  italic: 'trebucit', boldItalic: 'trebucbi'  },
+  'Verdana':        { regular: 'verdana',  bold: 'verdanab',  italic: 'verdanai', boldItalic: 'verdanaz'  }
+};
+
+let _fontsDirFileListCache = null; // cache listing folder Fonts (lowercase filename -> nama asli)
+function getFontsDirFileList(fontsDirNative) {
+  if (_fontsDirFileListCache) return _fontsDirFileListCache;
+  try {
+    const entries = fs.readdirSync(fontsDirNative);
+    const map = {};
+    entries.forEach(name => { map[name.toLowerCase()] = name; });
+    _fontsDirFileListCache = map;
+  } catch (err) {
+    console.warn(`[getWindowsFont] Gagal baca folder Fonts (${fontsDirNative}):`, err.message);
+    _fontsDirFileListCache = {};
   }
-  
-  const winDir = process.env.WINDIR || 'C:\\Windows';
-  const fontsDir = path.join(winDir, 'Fonts').replace(/\\/g, '/');
-  
-  const exactPath = `${fontsDir}/${base}${suffix}.ttf`;
-  if (fs.existsSync(exactPath)) return exactPath;
-  
-  const basePath = `${fontsDir}/${base}.ttf`;
-  if (fs.existsSync(basePath)) return basePath;
-  
-  const fallbackPath = `${fontsDir}/arial.ttf`;
-  if (fs.existsSync(fallbackPath)) return fallbackPath;
-  
+  return _fontsDirFileListCache;
+}
+
+function getWindowsFont(fontFamily, isBold, isItalic) {
+  const config = WINDOWS_FONT_FILES[fontFamily] || WINDOWS_FONT_FILES['Arial'];
+  let variantKey = 'regular';
+  if (isBold && isItalic) variantKey = 'boldItalic';
+  else if (isBold) variantKey = 'bold';
+  else if (isItalic) variantKey = 'italic';
+
+  const winDir = process.env.WINDIR || process.env.SystemRoot || 'C:\\Windows';
+  const fontsDirNative = path.join(winDir, 'Fonts');
+  const fontsDir = fontsDirNative.replace(/\\/g, '/');
+
+  // Kandidat dicoba berurutan: variant yang diminta -> regular font itu -> Arial variant yang sama -> arial.ttf polos
+  const candidates = [
+    config[variantKey],
+    config.regular,
+    WINDOWS_FONT_FILES['Arial'][variantKey],
+    'arial'
+  ];
+
+  const fileList = getFontsDirFileList(fontsDirNative);
+
+  for (const base of candidates) {
+    if (!base) continue;
+    const wantedName = `${base}.ttf`;
+    // 1. Coba exact match dulu (cepat, kasus umum)
+    const exactPath = `${fontsDir}/${wantedName}`;
+    if (fs.existsSync(exactPath)) {
+      return exactPath;
+    }
+    // 2. Kalau gagal, coba case-insensitive lookup dari listing folder Fonts
+    //    (jaga-jaga kalau nama file beda kapitalisasi, misal "Verdana.ttf" bukan "verdana.ttf")
+    const realName = fileList[wantedName.toLowerCase()];
+    if (realName) {
+      return `${fontsDir}/${realName}`;
+    }
+  }
+
+  console.warn(`[getWindowsFont] Semua kandidat font gagal ditemukan untuk fontFamily="${fontFamily}" (bold=${isBold}, italic=${isItalic}) di folder "${fontsDirNative}". FFmpeg akan pakai font fallback bawaan sendiri, tampilannya bisa beda total dari preview.`);
   return null;
 }
 
@@ -872,9 +901,10 @@ ipcMain.handle('start-render', async (event, options) => {
         let command = ffmpeg();
         activeFFmpegCommand = command;
           
-          // Gunakan ping-pong video yang sudah di-preprocess atau foto dengan loop
+          // Fast Render (copy stream video tanpa re-encode) HANYA berlaku jika mode Kualitas Tinggi (low compression)
+          // Jika user memilih 'high' (Sangat Kecil) atau 'medium', video WAJIB di-encode ulang agar terkompresi.
           const isMainPhoto = /\.(jpg|jpeg|png|webp|bmp)$/i.test(loopVideoPath);
-          const isFastRender = !isMainPhoto && !watermark && layers.length === 0;
+          const isFastRender = !isMainPhoto && !watermark && layers.length === 0 && compressionLevel === 'low';
 
           if (isMainPhoto) {
             command.input(loopVideoPath).inputOptions(['-loop', '1', '-framerate', '30']);
@@ -999,14 +1029,14 @@ ipcMain.handle('start-render', async (event, options) => {
             outputOpts.push(
               `-c:v ${encoderToUse}`,
               '-pix_fmt yuv420p',
-              '-r 30' // Tetapkan framerate ke 30fps
+              '-r 30'
             );
           }
 
           outputOpts.push(
             '-c:a aac',
             '-shortest',
-            '-threads 0'  // Gunakan semua CPU cores
+            '-threads 0'
           );
 
           if (allowOverwrite) outputOpts.push('-y');
@@ -1014,14 +1044,24 @@ ipcMain.handle('start-render', async (event, options) => {
           if (!isFastRender) {
             if (encoderToUse === 'libx264') {
               outputOpts.push('-preset', 'ultrafast');
-              if (compressionLevel === 'low') outputOpts.push('-crf', '18');
-              else if (compressionLevel === 'high') outputOpts.push('-crf', '28');
-              else outputOpts.push('-crf', '23');
+              if (compressionLevel === 'low') {
+                outputOpts.push('-crf', '22');
+              } else if (compressionLevel === 'high') {
+                // Extreme Kompresi: Target ~25-35 MB per 15 menit (~100-150 MB per 1 jam)
+                outputOpts.push('-crf', '36', '-b:v', '250k', '-maxrate', '350k', '-bufsize', '600k', '-b:a', '64k');
+              } else {
+                outputOpts.push('-crf', '26', '-b:a', '128k');
+              }
             } else {
               if (encoderToUse === 'h264_nvenc') outputOpts.push('-preset', 'p4');
-              if (compressionLevel === 'low') outputOpts.push('-b:v', '8M');
-              else if (compressionLevel === 'high') outputOpts.push('-b:v', '2M');
-              else outputOpts.push('-b:v', '4M');
+              if (compressionLevel === 'low') {
+                outputOpts.push('-b:v', '6M');
+              } else if (compressionLevel === 'high') {
+                // Extreme Kompresi GPU: Target ~25-35 MB per 15 menit (~100-150 MB per 1 jam)
+                outputOpts.push('-b:v', '250k', '-maxrate', '350k', '-bufsize', '600k', '-b:a', '64k');
+              } else {
+                outputOpts.push('-b:v', '2.5M', '-b:a', '128k');
+              }
             }
           }
 

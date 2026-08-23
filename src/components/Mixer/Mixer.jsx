@@ -286,16 +286,17 @@ export default function Mixer({
                 </label>
                 <div className="grid grid-cols-3 gap-2">
                   {[
-                    { id: 'low', label: t('highQuality') },
-                    { id: 'medium', label: t('balanced') },
-                    { id: 'high', label: t('smallSize') }
+                    { id: 'low', label: t('highQuality'), desc: '~2-3 GB/jam' },
+                    { id: 'medium', label: t('balanced'), desc: '~1-1.5 GB/jam' },
+                    { id: 'high', label: t('smallSize'), desc: '~110-150 MB/jam' }
                   ].map((lvl) => (
                     <button
                       key={lvl.id}
                       onClick={() => setCompressionLevel(lvl.id)}
-                      className={`border-2 border-black py-2 text-[10px] font-black uppercase transition-all ${compressionLevel === lvl.id ? 'bg-black text-white shadow-none translate-x-0.5 translate-y-0.5' : 'bg-blue-400 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:bg-zinc-100 '}`}
+                      className={`border-2 border-black py-2 px-1 text-[10px] font-black uppercase transition-all flex flex-col items-center justify-center ${compressionLevel === lvl.id ? 'bg-black text-white shadow-none translate-x-0.5 translate-y-0.5' : 'bg-blue-400 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:bg-zinc-100'}`}
                     >
-                      {lvl.label}
+                      <span>{lvl.label}</span>
+                      <span className={`text-[8px] font-bold mt-0.5 ${compressionLevel === lvl.id ? 'text-yellow-400' : 'text-zinc-900'}`}>{lvl.desc}</span>
                     </button>
                   ))}
                 </div>
