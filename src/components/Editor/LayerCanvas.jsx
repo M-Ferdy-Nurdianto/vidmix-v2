@@ -232,7 +232,7 @@ export default function LayerCanvas({ mediaPath, mediaType, layers, setLayers, s
  position: 'absolute',
  left: `${layer.x}%`,
  top: `${layer.y}%`,
- width: ['watermark', 'sticker', 'image'].includes(layer.type) ? '25%' : 'auto',
+ width: layer.type === 'watermark' ? '10%' : (['sticker', 'image'].includes(layer.type) ? '25%' : 'auto'),
  transform: `translate(-50%, -50%) scale(${layer.scale || 1}) rotate(${layer.rotation || 0}deg)`,
  zIndex: layer.zIndex || 10,
  }}

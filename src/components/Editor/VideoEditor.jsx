@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Film, Type, Image as ImageIcon, Activity, GripVertical, Trash2, Settings } from 'lucide-react';
 import LayerCanvas from './LayerCanvas';
 import LayerControlPanel from './LayerControlPanel';
-import toast from 'react-hot-toast';
+import { showToast } from '../../utils/toast-helper';
 
 export default function VideoEditor({
   videos,
@@ -21,7 +21,7 @@ export default function VideoEditor({
     if (editingVideoId) {
       const vid = videos.find(v => v.id === editingVideoId);
       if (vid && vid.path && /\.(jpg|jpeg|png|webp|bmp)$/i.test(vid.path)) {
-        toast.error("Foto tidak bisa diedit di sini, gunakan menu Foto ke Video");
+        showToast("Foto tidak bisa diedit di sini, gunakan menu Foto ke Video", "error");
         setEditingVideoId(null);
         if (setView) setView('phototovideo');
       }
@@ -76,21 +76,7 @@ export default function VideoEditor({
             onClick={() => { 
               setEditingVideoId(null); 
               setSelectedLayerId(null); 
-              toast.success("Edit berhasil disimpan!", {
-                position: 'top-center',
-                style: {
-                  border: '2px solid black',
-                  padding: '16px',
-                  color: 'black',
-                  backgroundColor: '#00FF55',
-                  fontWeight: '900',
-                  boxShadow: '4px 4px 0px 0px rgba(0,0,0,1)'
-                },
-                iconTheme: {
-                  primary: 'black',
-                  secondary: '#00FF55',
-                },
-              });
+              showToast("Edit berhasil disimpan!", "success");
             }}
             className="bg-[#00FF55]-black border-4 border-black px-6 py-2 font-black text-lg shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5"
           >
@@ -273,7 +259,7 @@ export default function VideoEditor({
                         try {
                           const result = await window.api.selectMediaFile();
                           if (result) {
-                            const newLayer = { id: Date.now().toString(), type: 'watermark', name: `Watermark Utama`, src: result.path, x: 90, y: 10, scale: 0.3, rotation: 0, zIndex: 9000 + (currentVideo?.layers.length || 0) + 1 };
+                            const newLayer = { id: Date.now().toString(), type: 'watermark', name: `Watermark Utama`, src: result.path, x: 90, y: 10, scale: 1, rotation: 0, zIndex: 9000 + (currentVideo?.layers.length || 0) + 1 };
                             setVideos(prev => prev.map(v => v.id === editingVideoId ? { ...v, layers: [...v.layers, newLayer] } : v));
                             setSelectedLayerId(newLayer.id);
                           }

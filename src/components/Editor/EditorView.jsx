@@ -1,19 +1,40 @@
 import React, { useState, useEffect } from 'react';
-import { Film, Type, Image as ImageIcon, Play, RefreshCw, GripVertical, Trash2, Settings } from 'lucide-react';
+import { Film, Type, Image as ImageIcon, Play, RefreshCw, GripVertical, Trash2, Settings, FolderOpen, CheckCircle2 } from 'lucide-react';
 import LayerCanvas from './LayerCanvas';
 import LayerControlPanel from './LayerControlPanel';
-import toast from 'react-hot-toast';
+import { showToast, playLoudSuccessSound } from '../../utils/toast-helper';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 export default function EditorView({ outputDir, handleSelectFolder, allowOverwrite }) {
-  const [mediaPath, setMediaPath] = useState(null);
-  const [mediaType, setMediaType] = useState(null);
-  const [layers, setLayers] = useState([]);
+  const { t } = useLanguage();
+  const [mediaPath, setMediaPath] = useState(() => localStorage.getItem('vidmix_editor_mediaPath') || null);
+  const [mediaType, setMediaType] = useState(() => localStorage.getItem('vidmix_editor_mediaType') || null);
+  const [layers, setLayers] = useState(() => {
+    try {
+      const saved = localStorage.getItem('vidmix_editor_layers');
+      return saved ? JSON.parse(saved) : [];
+    } catch(e) {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    if (mediaPath) localStorage.setItem('vidmix_editor_mediaPath', mediaPath);
+    else localStorage.removeItem('vidmix_editor_mediaPath');
+    
+    if (mediaType) localStorage.setItem('vidmix_editor_mediaType', mediaType);
+    else localStorage.removeItem('vidmix_editor_mediaType');
+    
+    localStorage.setItem('vidmix_editor_layers', JSON.stringify(layers));
+  }, [mediaPath, mediaType, layers]);
+
   const [selectedLayerId, setSelectedLayerId] = useState(null);
   const [editingLayerNameId, setEditingLayerNameId] = useState(null);
   const [draggedLayerIndex, setDraggedLayerIndex] = useState(null);
   const [dragOverLayerIndex, setDragOverLayerIndex] = useState(null);
   const [availableGifs, setAvailableGifs] = useState([]);
   const [isRendering, setIsRendering] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
   const [renderProgress, setRenderProgress] = useState(null);
 
   useEffect(() => {
@@ -36,15 +57,15 @@ export default function EditorView({ outputDir, handleSelectFolder, allowOverwri
       const result = await window.api.selectMediaFile();
       if (result) {
         if (result.mediaType === 'photo') {
-           toast.error('Foto tidak bisa diedit di sini, gunakan menu Foto ke Video');
+           showToast(t('editorPhotoNotSupported'), 'error');
            return;
         }
         setMediaPath(result.path);
         setMediaType('video');
-        toast.success(`Media VIDEO terpilih!`);
+        showToast(t('editorVideoSelected'), 'success');
       }
     } catch (e) {
-      toast.error('Gagal memilih media.');
+      showToast('Gagal memilih media.', 'error');
     }
   };
 
@@ -71,25 +92,25 @@ export default function EditorView({ outputDir, handleSelectFolder, allowOverwri
 
   const handleRender = async () => {
     if (!mediaPath) {
-      toast.error('Pilih media dasar terlebih dahulu!');
+      showToast(t('editorSelectMediaFirst'), 'error');
       return;
     }
     if (!outputDir) {
-      toast.error('Pilih folder output terlebih dahulu!');
+      showToast(t('editorSelectOutputFirst'), 'error');
       return;
     }
 
     try {
       const originalName = mediaPath.split(/[\\/]/).pop();
       const nameWithoutExt = originalName.substring(0, originalName.lastIndexOf('.')) || originalName;
-      const suggestedFileName = `${nameWithoutExt}_edited.mp4`;
+      const suggestedFileName = `${nameWithoutExt}_edit.mp4`;
       
       const separator = outputDir.includes('\\') ? '\\' : '/';
       const outputPath = `${outputDir}${outputDir.endsWith(separator) ? '' : separator}${suggestedFileName}`;
 
       setIsRendering(true);
+      setIsSuccess(false);
       setRenderProgress(null);
-      toast.loading('Sedang merender video (Editor)...', { id: 'editor-render' });
 
       await window.api.renderEditor({
         mediaPath,
@@ -100,12 +121,14 @@ export default function EditorView({ outputDir, handleSelectFolder, allowOverwri
         durationSec: 10
       });
 
-      toast.success('Render Selesai! Video tersimpan.', { id: 'editor-render' });
+      playLoudSuccessSound();
+      showToast(t('editorRenderSuccess') || 'Video Berhasil Dirender!', 'success');
+      setIsSuccess(true);
     } catch (err) {
       if (err.message.includes('RENDER_CANCELED')) {
-        toast.error('Proses render editor dibatalkan.', { id: 'editor-render' });
+        showToast(t('editorRenderCanceled'), 'error');
       } else {
-        toast.error(`Render gagal: ${err.message}`, { id: 'editor-render' });
+        showToast(`${t('editorRenderFailed')}${err.message}`, 'error');
       }
     } finally {
       setIsRendering(false);
@@ -116,112 +139,92 @@ export default function EditorView({ outputDir, handleSelectFolder, allowOverwri
   const fileName = mediaPath ? mediaPath.split('\\').pop().split('/').pop() : null;
 
   return (
-    <div className="flex flex-col gap-6 relative min-h-[70vh]">
+        <div className="flex flex-col gap-6 relative min-h-[70vh]">
       
       {/* Full-screen Render Overlay */}
       {isRendering && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-6">
-          <div className="bg-[#00F0FF] border-4 border-black p-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] max-w-xl w-full transform animate-in zoom-in-95 duration-200">
-            <h2 className="text-3xl font-black mb-4 flex items-center gap-3">
+        <div className="fixed inset-0 z-99999 bg-black/80 backdrop-blur-sm flex items-center justify-center p-6">
+          <div className="bg-[#FF90E8] border-4 border-black p-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] max-w-xl w-full transform animate-in zoom-in-95 duration-200">
+            <h2 className="text-3xl font-black mb-4 flex items-center gap-3 text-black">
               <RefreshCw className="animate-spin w-8 h-8" />
-              SEDANG MERENDER EDITOR...
+              {t('loadingProcessing') || 'PROCESSING...'}
             </h2>
-            <p className="font-bold text-sm mb-6 border-l-4 border-black pl-3 py-1 bg-green-400">
-              FFmpeg sedang memproses susunan layer Anda menjadi video utuh.
+            <p className="font-bold text-sm mb-6 border-l-4 border-black pl-3 py-1 bg-white text-black">
+              {t('loadingDesc')}
             </p>
             
-            <div className="border-4 border-black bg-orange-400 h-14 w-full relative overflow-hidden shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
-              {renderProgress && (
-                <div 
-                  className="absolute top-0 left-0 h-full bg-[#FFE500] border-r-4 border-black" 
-                  style={{ width: `${Math.min(Math.max(renderProgress.percent, 0), 100)}%` }} 
-                />
-              )}
+            <div className="border-4 border-black bg-white h-14 w-full relative overflow-hidden shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+              <div 
+                className="absolute top-0 left-0 h-full bg-[#00F0FF] border-r-4 border-black transition-all duration-300 ease-out" 
+                style={{ width: `${Math.min(Math.max(renderProgress ? renderProgress.percent : 0, 0), 100)}%` }}
+              />
               <div className="absolute inset-0 flex items-center justify-center font-black text-xl z-10 mix-blend-difference text-white">
-                {renderProgress ? `${Math.round(renderProgress.percent)}%` : 'MENYIAPKAN RENDER...'}
+                {renderProgress ? `${t('loadingProcessing')} ${Math.round(renderProgress.percent)}%` : t('editorPreparing')}
               </div>
             </div>
             
-            <div className="mt-6 flex justify-between items-center font-black bg-black text-white px-4 py-2">
-              <span>STATUS: PROCESSING</span>
-              <span>{renderProgress?.timemark || '00:00:00.00'}</span>
+            <div className="mt-6 flex justify-between items-center font-black bg-black text-white px-4 py-2 text-sm">
+              <span>STATUS: FFmpeg</span>
+              <span>{renderProgress?.timemark ? renderProgress.timemark : '00:00:00.00'}</span>
             </div>
 
             <button 
               onClick={() => window.api.cancelRender()}
-              className="mt-4 w-full border-4 border-black bg-red-500 hover:bg-red-600 text-white font-black py-2 active:translate-x-0.5 active:translate-y-0.5 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+              className="mt-4 w-full border-4 border-black bg-red-500 hover:bg-red-600 text-white font-black py-2 active:translate-x-0.5 active:translate-y-0.5 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] uppercase"
             >
-              BATALKAN RENDER
+              {t('cancelRender') || 'BATALKAN RENDER'}
             </button>
           </div>
         </div>
       )}
 
-      {/* Top Action Bar */}
-      <div className="flex gap-4">
-        <button 
-          onClick={handleRender}
-          disabled={isRendering || !mediaPath}
-          className="flex-1 bg-[#00FF55] hover:bg-[#00CC44] border-4 border-black py-3 font-black text-lg shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-x-1 active:translate-y-1 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <Play className="w-5 h-5" /> RENDER VIDEO (EDITOR)
-        </button>
-      </div>
+      {/* Full-screen Success Overlay */}
+      {isSuccess && !isRendering && (
+        <div className="fixed inset-0 z-99999 bg-black/80 backdrop-blur-sm flex items-center justify-center p-6">
+          <div className="bg-[#00FF55] border-4 border-black p-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] max-w-xl w-full transform animate-in zoom-in-95 duration-200 relative">
+            <button 
+              onClick={() => setIsSuccess(false)}
+              className="absolute top-4 right-4 bg-blue-400 border-2 border-black w-8 h-8 flex items-center justify-center font-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5"
+            >
+              X
+            </button>
+            <h2 className="text-4xl font-black mb-4 flex items-center gap-3">
+              <CheckCircle2 className="w-10 h-10" />
+              {t('successTitle') || 'BERHASIL!'}
+            </h2>
+            <p className="font-bold text-base mb-6 border-l-4 border-black pl-3 py-2 bg-green-400">
+              {t('editorRenderSuccess') || 'Video Berhasil Dirender!'}
+            </p>
+            
+            <button
+              onClick={() => { window.api.openFolder(outputDir); setIsSuccess(false); }}
+              className="w-full py-4 font-black text-lg border-4 border-black bg-[#FFE500] hover:bg-[#FFD700] shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-x-1 active:translate-y-1 transition-all flex items-center justify-center gap-2"
+            >
+              <FolderOpen className="w-6 h-6" /> {t('openFolder')}
+            </button>
+          </div>
+        </div>
+      )}
 
-      <div className="flex flex-1 min-h-125 gap-4">
+      <div className="flex flex-1 min-h-31.25 gap-4">
         
         {/* Left Sidebar (Tools & Presets) */}
         <div className="w-72 flex flex-col gap-4 overflow-y-auto pr-2 pb-2">
           
-          <div className="border-4 border-black bg-purple-400 p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] shrink-0">
-            <h3 className="font-black text-sm mb-3 uppercase border-b-2 border-black pb-1">Media Dasar</h3>
-            <div className="flex flex-col gap-2">
-              <div className="bg-zinc-100 border-2 border-black px-3 py-2 text-xs font-bold flex items-center justify-between">
-                <span className="truncate mr-2">
-                  {fileName ? fileName : 'Belum ada media...'}
-                </span>
-              </div>
-              <button 
-                onClick={handleSelectMedia} 
-                className="w-full bg-[#00F0FF] hover:bg-[#00D0FF] border-2 border-black py-2 font-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 text-xs"
-              >
-                PILIH VIDEO DASAR
-              </button>
-            </div>
-          </div>
-
-          {/* Folder Output */}
-          <div className="border-4 border-black bg-orange-400 p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] shrink-0">
-            <h3 className="font-black text-sm mb-3 uppercase border-b-2 border-black pb-1">Direktori Output</h3>
-            <div className="flex flex-col gap-2">
-              <div className="bg-zinc-100 border-2 border-black px-3 py-2 text-xs font-bold flex items-center justify-between" title={outputDir}>
-                <span className="truncate mr-2">
-                  {outputDir ? (outputDir.length > 25 ? '...' + outputDir.slice(-25) : outputDir) : 'Belum ada folder...'}
-                </span>
-              </div>
-              <button 
-                onClick={() => handleSelectFolder('output')} 
-                className="w-full bg-[#FFE500] hover:bg-[#E5CD00] border-2 border-black py-2 font-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 text-xs"
-              >
-                PILIH FOLDER OUTPUT
-              </button>
-            </div>
-          </div>
-
-          {/* Tambah Element */}
+          {/* {t('editorAddElement')}t */}
           <div className="border-4 border-black bg-[#FF90E8] p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] shrink-0">
-            <h3 className="font-black text-sm mb-3 uppercase border-b-2 border-black pb-1">Tambah Elemen</h3>
+            <h3 className="font-black text-sm mb-3 uppercase border-b-2 border-black pb-1">{t('editorAddElement')}</h3>
             <div className="grid grid-cols-2 gap-2">
               <button 
                 onClick={() => {
-                  const newLayer = { id: Date.now().toString(), type: 'text', content: 'Teks Baru', color: '#ffffff', fontSize: '48px', x: 50, y: 50, scale: 1, rotation: 0, zIndex: layers.length + 1, fontFamily: 'Arial', textAlign: 'center' };
+                  const newLayer = { id: Date.now().toString(), type: 'text', content: t('editorNewText'), color: '#ffffff', fontSize: '48px', x: 50, y: 50, scale: 1, rotation: 0, zIndex: layers.length + 1, fontFamily: 'Arial', textAlign: 'center' };
                   setLayers([...layers, newLayer]);
                   setSelectedLayerId(newLayer.id);
                 }} 
                 className="flex flex-col items-center justify-center gap-2 py-3 bg-[#FFE500] hover:bg-[#E5CD00] border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 font-bold"
               >
                 <Type className="w-6 h-6" />
-                <span className="text-xs">Teks</span>
+                <span className="text-xs">{t('editorText')}</span>
               </button>
               <button 
                 onClick={async () => {
@@ -237,15 +240,15 @@ export default function EditorView({ outputDir, handleSelectFolder, allowOverwri
                 className="flex flex-col items-center justify-center gap-2 py-3 bg-white hover:bg-zinc-200 border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 font-bold"
               >
                 <ImageIcon className="w-6 h-6" />
-                <span className="text-xs">Gambar</span>
+                <span className="text-xs">{t('editorImage')}</span>
               </button>
             </div>
           </div>
 
-          {/* Stiker / GIF Panel */}
+          {/* {t('editorStickerGif')} Panel */}
           <div className="border-4 border-black bg-yellow-400 p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] shrink-0 max-h-56 flex flex-col">
             <div className="flex justify-between items-center mb-3 border-b-2 border-black pb-1">
-              <h3 className="font-black text-sm uppercase">Stiker / GIF</h3>
+              <h3 className="font-black text-sm uppercase">{t('editorStickerGif')}</h3>
               <div className="flex gap-1">
                 <button 
                   onClick={async () => {
@@ -274,7 +277,7 @@ export default function EditorView({ outputDir, handleSelectFolder, allowOverwri
             </div>
             {availableGifs.length === 0 ? (
               <div className="text-xs font-bold text-center text-zinc-500 py-4 bg-zinc-100 border-2 border-dashed border-zinc-400">
-                Folder Kosong
+                {t('editorEmptyFolder')}
               </div>
             ) : (
               <div className="grid grid-cols-3 gap-2 overflow-y-auto pr-1 pb-1">
@@ -308,9 +311,9 @@ export default function EditorView({ outputDir, handleSelectFolder, allowOverwri
             )}
           </div>
 
-          {/* Watermark Presets */}
+          {/* {t('editorWatermarkPreset')}s */}
           <div className="border-4 border-black bg-blue-400 p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] shrink-0">
-            <h3 className="font-black text-sm mb-3 uppercase border-b-2 border-black pb-1">Watermark Preset</h3>
+            <h3 className="font-black text-sm mb-3 uppercase border-b-2 border-black pb-1">{t('editorWatermarkPreset')}</h3>
             
             {(() => {
               const wmLayer = layers.find(l => l.type === 'watermark');
@@ -318,48 +321,80 @@ export default function EditorView({ outputDir, handleSelectFolder, allowOverwri
               return (
                 <div className="flex flex-col gap-3">
                   {wmLayer ? (
-                    <div className="relative border-2 border-black p-2 bg-zinc-100 flex flex-col items-center justify-center h-24 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] group">
-                      <img src={`file://${wmLayer.src}`} className="max-h-full max-w-full object-contain" />
-                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-2 transition-opacity">
+                    <>
+                      <div className="relative border-2 border-black p-2 bg-zinc-100 flex flex-col items-center justify-center h-24 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] group">
+                        <img src={`file://${wmLayer.src}`} className="max-h-full max-w-full object-contain" />
+                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-2 transition-opacity">
+                          <button 
+                            onClick={async () => {
+                              try {
+                                const result = await window.api.selectMediaFile();
+                                if (result) {
+                                  setLayers(layers.map(l => l.id === wmLayer.id ? { ...l, src: result.path } : l));
+                                }
+                              } catch(e) {}
+                            }}
+                            className="bg-blue-500 text-white p-1 border-2 border-black hover:bg-blue-600 shadow-sm" title={t('editorChangeImage')}
+                          >
+                            <ImageIcon className="w-4 h-4" />
+                          </button>
+                          <button 
+                            onClick={() => {
+                              setLayers(layers.filter(l => l.id !== wmLayer.id));
+                              if (selectedLayerId === wmLayer.id) setSelectedLayerId(null);
+                            }}
+                            className="bg-red-500 text-white p-1 border-2 border-black hover:bg-red-600 shadow-sm" title={t('editorDeleteWatermark')}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 mt-1">
                         <button 
-                          onClick={async () => {
-                            try {
-                              const result = await window.api.selectMediaFile();
-                              if (result) {
-                                setLayers(layers.map(l => l.id === wmLayer.id ? { ...l, src: result.path } : l));
-                              }
-                            } catch(e) {}
-                          }}
-                          className="bg-blue-500 text-white p-1 border-2 border-black hover:bg-blue-600 shadow-sm" title="Ubah Gambar"
+                          onClick={() => setLayers(layers.map(l => l.id === wmLayer.id ? { ...l, x: 10, y: 10 } : l))}
+                          className="border-2 border-black bg-zinc-100 py-1 text-sm font-black hover:bg-[#FFE500] hover:-translate-y-0.5 active:translate-y-0.5 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_4px_0px_0px_rgba(0,0,0,1)] transition-all"
+                          title="Kiri Atas"
                         >
-                          <ImageIcon className="w-4 h-4" />
+                          ↖
                         </button>
                         <button 
-                          onClick={() => {
-                            setLayers(layers.filter(l => l.id !== wmLayer.id));
-                            if (selectedLayerId === wmLayer.id) setSelectedLayerId(null);
-                          }}
-                          className="bg-red-500 text-white p-1 border-2 border-black hover:bg-red-600 shadow-sm" title="Hapus Watermark"
+                          onClick={() => setLayers(layers.map(l => l.id === wmLayer.id ? { ...l, x: 90, y: 10 } : l))}
+                          className="border-2 border-black bg-zinc-100 py-1 text-sm font-black hover:bg-[#FFE500] hover:-translate-y-0.5 active:translate-y-0.5 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_4px_0px_0px_rgba(0,0,0,1)] transition-all"
+                          title="Kanan Atas"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          ↗
+                        </button>
+                        <button 
+                          onClick={() => setLayers(layers.map(l => l.id === wmLayer.id ? { ...l, x: 10, y: 90 } : l))}
+                          className="border-2 border-black bg-zinc-100 py-1 text-sm font-black hover:bg-[#FFE500] hover:-translate-y-0.5 active:translate-y-0.5 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_4px_0px_0px_rgba(0,0,0,1)] transition-all"
+                          title="Kiri Bawah"
+                        >
+                          ↙
+                        </button>
+                        <button 
+                          onClick={() => setLayers(layers.map(l => l.id === wmLayer.id ? { ...l, x: 90, y: 90 } : l))}
+                          className="border-2 border-black bg-zinc-100 py-1 text-sm font-black hover:bg-[#FFE500] hover:-translate-y-0.5 active:translate-y-0.5 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_4px_0px_0px_rgba(0,0,0,1)] transition-all"
+                          title="Kanan Bawah"
+                        >
+                          ↘
                         </button>
                       </div>
-                    </div>
+                    </>
                   ) : (
                     <button 
                       onClick={async () => {
                         try {
                           const result = await window.api.selectMediaFile();
                           if (result) {
-                            const newLayer = { id: Date.now().toString(), type: 'watermark', name: `Watermark Utama`, src: result.path, x: 90, y: 10, scale: 0.3, rotation: 0, zIndex: 9000 + layers.length + 1 };
+                            const newLayer = { id: Date.now().toString(), type: 'watermark', name: 'Watermark Utama', src: result.path, x: 90, y: 10, scale: 1, rotation: 0, zIndex: 9000 + layers.length + 1 };
                             setLayers([...layers, newLayer]);
                             setSelectedLayerId(newLayer.id);
                           }
                         } catch(e) {}
                       }}
-                      className="w-full bg-[#FFE500]-black font-bold border-2 border-black py-2 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 text-xs"
+                      className="w-full bg-[#FFE500] text-black font-bold border-2 border-black py-2 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 text-xs"
                     >
-                      + Tambah Watermark
+                      {t('editorAddWatermarkBtn')}
                     </button>
                   )}
                 </div>
@@ -367,32 +402,15 @@ export default function EditorView({ outputDir, handleSelectFolder, allowOverwri
             })()}
           </div>
 
-        </div>
-
-        {/* Center Main Area (Canvas + Timeline) */}
-        <div className="flex-1 flex flex-col gap-4 overflow-hidden relative">
-          
-          {/* Center Canvas */}
-          <div className="flex-1 flex items-center justify-center border-4 border-black bg-zinc-900 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] relative overflow-hidden">
-            <LayerCanvas 
-              mediaPath={mediaPath}
-              mediaType={mediaType}
-              layers={layers}
-              setLayers={setLayers}
-              selectedLayerId={selectedLayerId}
-              setSelectedLayerId={setSelectedLayerId}
-            />
-          </div>
-
-          {/* Bottom Layers Panel */}
-          <div className="h-40 border-4 border-black bg-green-400 p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex flex-col shrink-0">
+          {/* Layers List Panel */}
+          <div className="border-4 border-black bg-green-400 p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex flex-col shrink-0 flex-1">
             <h3 className="font-black text-sm mb-3 uppercase border-b-2 border-black pb-1 flex justify-between items-center shrink-0">
-              <span>Layers</span>
+              <span>{t('editorLayers')}</span>
               <span className="bg-black text-white px-2 py-0.5 text-xs font-bold">
                 {layers.length}
               </span>
             </h3>
-            <div className="flex-1 flex overflow-x-auto gap-3 pb-2 items-center">
+            <div className="flex-1 overflow-y-auto space-y-2 pr-1 min-h-37.5">
               {(() => {
                 const sortedLayers = [...layers].sort((a, b) => (b.zIndex || 0) - (a.zIndex || 0)); // Reverse order for UI
                 
@@ -421,17 +439,21 @@ export default function EditorView({ outputDir, handleSelectFolder, allowOverwri
                         setDraggedLayerIndex(null);
                         setDragOverLayerIndex(null);
                       }}
-                      className={`w-36 h-full flex flex-col items-center justify-center gap-2 p-2 border-4 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] text-center cursor-grab active:cursor-grabbing shrink-0 ${isDragged ? 'opacity-50 border-dashed border-black bg-zinc-200 ' : isSelected ? 'bg-[#00FF55] border-black' : 'bg-orange-400 border-black hover:bg-zinc-100 '} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
+                      className={`w-full flex items-center gap-3 p-2 border-2 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] text-left cursor-grab active:cursor-grabbing ${isDragged ? 'opacity-50 border-dashed border-black bg-zinc-200 ' : isSelected ? 'bg-[#00FF55] border-black' : 'bg-orange-400 border-black hover:bg-zinc-100 '} ${isDragOver ? 'border-t-4 border-t-blue-500' : ''}`}
                     >
+                      <div className="text-zinc-400 cursor-grab px-1" title="Drag to reorder">
+                        <GripVertical className="w-4 h-4 text-black" />
+                      </div>
+                      
                       <div className="text-black shrink-0" onClick={() => setSelectedLayerId(layer.id)}>
-                        {layer.type === 'text' ? <Type className="w-6 h-6" /> : <ImageIcon className="w-6 h-6" />}
+                        {layer.type === 'text' ? <Type className="w-5 h-5" /> : <ImageIcon className="w-5 h-5" />}
                       </div>
 
                       {editingLayerNameId === layer.id ? (
                         <input 
                           type="text"
                           autoFocus
-                          defaultValue={layer.name || (layer.type === 'text' ? layer.content || 'Teks Element' : 'Media Element')}
+                          defaultValue={layer.name || (layer.type === 'text' ? layer.content || t('editorText') : t('editorBaseMedia'))}
                           onBlur={(e) => {
                             setEditingLayerNameId(null);
                             setLayers(layers.map(l => l.id === layer.id ? { ...l, name: e.target.value } : l));
@@ -439,12 +461,12 @@ export default function EditorView({ outputDir, handleSelectFolder, allowOverwri
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') e.target.blur();
                           }}
-                          className="w-full text-[10px] font-bold text-center text-black bg-purple-400 border-2 border-black px-1 outline-none"
+                          className="flex-1 min-w-0 text-xs font-bold text-black bg-purple-400 border-2 border-black px-1 outline-none"
                           onClick={(e) => e.stopPropagation()}
                         />
                       ) : (
                         <span 
-                          className="text-[10px] font-bold truncate w-full px-1 text-black cursor-pointer"
+                          className="text-xs font-bold truncate flex-1 text-black cursor-pointer"
                           onClick={() => setSelectedLayerId(layer.id)}
                           onDoubleClick={(e) => {
                             e.stopPropagation();
@@ -452,7 +474,7 @@ export default function EditorView({ outputDir, handleSelectFolder, allowOverwri
                           }}
                           title="Double click to rename"
                         >
-                          {layer.name || (layer.type === 'text' ? layer.content || 'Teks Element' : 'Media Element')}
+                          {layer.name || (layer.type === 'text' ? layer.content || t('editorText') : t('editorBaseMedia'))}
                         </span>
                       )}
                     </div>
@@ -460,12 +482,80 @@ export default function EditorView({ outputDir, handleSelectFolder, allowOverwri
                 });
               })()}
               {layers.length === 0 && (
-                <div className="w-full h-full flex items-center justify-center border-2 border-dashed border-black text-zinc-800 text-xs font-bold bg-green-300">
-                  Belum ada elemen.
+                <div className="text-center p-4 border-2 border-dashed border-black mt-2 text-zinc-600 text-xs font-bold">
+                  {t('editorNoElements')}
                 </div>
               )}
             </div>
           </div>
+        </div>
+
+        {/* Center Main Area (Canvas + Bottom Controls) */}
+        <div className="flex-1 flex flex-col gap-4 overflow-hidden relative">
+          
+          {/* Center Canvas */}
+          <div className="flex-1 flex items-center justify-center border-4 border-black bg-zinc-900 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] relative overflow-hidden">
+            <LayerCanvas 
+              mediaPath={mediaPath}
+              mediaType={mediaType}
+              layers={layers}
+              setLayers={setLayers}
+              selectedLayerId={selectedLayerId}
+              setSelectedLayerId={setSelectedLayerId}
+            />
+          </div>
+
+          {/* Bottom Controls Panel */}
+          <div className="flex gap-4 shrink-0">
+            {/* {t('editorBaseMedia')} */}
+            <div className="flex-1 border-4 border-black bg-purple-400 p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+              <h3 className="font-black text-sm mb-3 uppercase border-b-2 border-black pb-1">{t('editorBaseMedia')}</h3>
+              <div className="flex flex-col gap-2">
+                <div className="bg-zinc-100 border-2 border-black px-3 py-2 text-xs font-bold flex items-center justify-between">
+                  <span className="truncate mr-2">
+                    {fileName ? fileName : t('editorNoMedia')}
+                  </span>
+                </div>
+                <button 
+                  onClick={handleSelectMedia} 
+                  className="w-full bg-[#00F0FF] hover:bg-[#00D0FF] border-2 border-black py-2 font-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 text-xs"
+                >
+                  {t('editorSelectBaseVideo')}
+                </button>
+              </div>
+            </div>
+
+            {/* Folder Output */}
+            <div className="flex-1 border-4 border-black bg-orange-400 p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+              <h3 className="font-black text-sm mb-3 uppercase border-b-2 border-black pb-1">{t('editorOutputDirectory')}</h3>
+              <div className="flex flex-col gap-2">
+                <div className="bg-zinc-100 border-2 border-black px-3 py-2 text-xs font-bold flex items-center justify-between" title={outputDir}>
+                  <span className="truncate mr-2">
+                    {outputDir ? (outputDir.length > 25 ? '...' + outputDir.slice(-25) : outputDir) : t('editorNoFolder')}
+                  </span>
+                </div>
+                <button 
+                  onClick={() => handleSelectFolder('output')} 
+                  className="w-full bg-[#FFE500] hover:bg-[#E5CD00] border-2 border-black py-2 font-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 text-xs"
+                >
+                  {t('editorSelectOutputFolder')}
+                </button>
+              </div>
+            </div>
+
+            {/* Export */}
+            <div className="flex-1 flex items-stretch">
+              <button 
+                onClick={handleRender}
+                disabled={isRendering || !mediaPath}
+                className="w-full h-full bg-[#00FF55] hover:bg-[#00CC44] border-4 border-black font-black text-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-x-1 active:translate-y-1 transition-all flex flex-col items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Play className="w-8 h-8" /> 
+                <span>{t('editorRenderVideoBtn')}</span>
+              </button>
+            </div>
+          </div>
+
         </div>
         
         {/* Right Properties Panel */}
@@ -484,8 +574,8 @@ export default function EditorView({ outputDir, handleSelectFolder, allowOverwri
               <div className="w-16 h-16 rounded-full bg-zinc-200 border-2 border-black flex items-center justify-center mb-4 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
                 <Settings className="w-8 h-8 text-black" />
               </div>
-              <p className="text-lg font-black text-black">Pilih Elemen</p>
-              <p className="text-sm font-bold mt-2 text-black">Klik sebuah teks atau gambar di kanvas untuk mengatur propertinya.</p>
+              <p className="text-lg font-black text-black">{t('editorSelectElement')}</p>
+              <p className="text-sm font-bold mt-2 text-black">{t('editorSelectElementDesc')}</p>
             </div>
           )}
         </div>

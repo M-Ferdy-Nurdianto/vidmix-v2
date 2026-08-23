@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { FolderOpen, Play, RefreshCw, CheckCircle2, Settings, Music } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { showToast } from '../../utils/toast-helper';
 import { useLanguage } from '../../contexts/LanguageContext';
 
 export default function Mixer({
@@ -153,7 +153,7 @@ export default function Mixer({
                 onClick={() => {
                   setVideos([]);
                   setAudios([]);
-                  toast.success('Semua media berhasil dihapus!');
+                  showToast('Semua media berhasil dihapus!', 'success');
                 }}
                 className="bg-red-500 hover:bg-red-600 text-white border-2 border-black px-3 py-1 text-xs font-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5"
                 title={t('clearMediaTitle')}

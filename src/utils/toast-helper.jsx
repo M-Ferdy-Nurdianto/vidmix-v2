@@ -9,6 +9,7 @@ const TOAST_STYLES = {
 };
 
 export function showToast(message, type = 'info') {
+  if (type === 'error') playErrorSound();
   const { bg, Icon } = TOAST_STYLES[type];
   toast.custom(
     (t) => (
@@ -55,5 +56,36 @@ export function playLoudSuccessSound() {
     osc2.stop(audioCtx.currentTime + 1.0);
   } catch (e) {
     console.error('Failed to play loud success sound', e);
+  }
+}
+
+export function playErrorSound() {
+  try {
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const gainNode = audioCtx.createGain();
+    
+    gainNode.gain.setValueAtTime(0.5, audioCtx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+    
+    const osc1 = audioCtx.createOscillator();
+    osc1.type = 'sawtooth';
+    osc1.frequency.setValueAtTime(150, audioCtx.currentTime);
+    osc1.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.5);
+    
+    const osc2 = audioCtx.createOscillator();
+    osc2.type = 'square';
+    osc2.frequency.setValueAtTime(200, audioCtx.currentTime);
+    osc2.frequency.exponentialRampToValueAtTime(150, audioCtx.currentTime + 0.5);
+    
+    osc1.connect(gainNode);
+    osc2.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+    
+    osc1.start();
+    osc2.start();
+    osc1.stop(audioCtx.currentTime + 0.5);
+    osc2.stop(audioCtx.currentTime + 0.5);
+  } catch (e) {
+    console.error('Failed to play error sound', e);
   }
 }

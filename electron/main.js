@@ -516,31 +516,24 @@ function buildSpectrumFilter(layer, specIdx, lastOutputLabel, filterParts) {
 
   if (layer.shape === 'circular') {
     // --- CIRCULAR SPECTRUM ---
-    const size = 500;
-    // Gunakan showfreqs mode=bar karena tumbuh dari bawah (Y=H) ke atas (Y=0)
+    const size = 360;
+    // Gunakan showfreqs mode=bar
     filterParts.push(`[aud_spec_${specIdx}]showfreqs=size=${size}x${size}:mode=bar:fscale=log:colors=${hexColor}[wave_raw_${specIdx}]`);
-    filterParts.push(`[wave_raw_${specIdx}]format=rgba,colorkey=black:0.01:0.3[wave_trans_${specIdx}]`);
+    filterParts.push(`[wave_raw_${specIdx}]format=rgba,colorkey=black:0.1:0.2[wave_trans_${specIdx}]`);
     
     // Polar wrap menggunakan geq
-    // R_inner adalah radius dalam (tempat wave dimulai). Jika ada gambar, R_inner = size/4.
     const hasCenterImage = !!layer.centerImageIndex;
     const rInnerExpr = hasCenterImage ? '(H/4)' : '(H/8)';
-    
-    // Rumus memetakan radius output (r) ke kordinat Y input (coordY)
-    // r = R_inner -> coordY = H
-    // r = H/2 -> coordY = 0
-    // coordY = H * (H/2 - r) / (H/2 - R_inner)
     
     const coordX = `mod((2*W/(2*PI))*(PI+atan2(0.5*H-Y,X-W/2)),W)`;
     const rExpr = `hypot(0.5*H-Y,X-W/2)`;
     const coordY = `H*(H/2-${rExpr})/(H/2-${rInnerExpr})`;
     
-    // Mapping sederhana tanpa perhitungan warna pelangi di dalam geq (jauh lebih cepat)
-    filterParts.push(`[wave_trans_${specIdx}]geq=r='r(${coordX}, ${coordY})':g='g(${coordX}, ${coordY})':b='b(${coordX}, ${coordY})':a='if(lt(${rExpr},${rInnerExpr}), 0, alpha(${coordX}, ${coordY}))'[wave_circ_${specIdx}]`);
+    // Transparent polar coordinate mapping
+    filterParts.push(`[wave_trans_${specIdx}]geq=r='r(${coordX}, ${coordY})':g='g(${coordX}, ${coordY})':b='b(${coordX}, ${coordY})':a='if(lt(${rExpr},${rInnerExpr}), 0, if(gt(${rExpr},H/2), 0, alpha(${coordX}, ${coordY})))'[wave_circ_${specIdx}]`);
     
     let toOverlay = `wave_circ_${specIdx}`;
     
-    // Rainbow coloring menggunakan hue filter (diaplikasikan setelah geq)
     if (isRainbow) {
       if (layer.colorMode === 'rainbow_running') {
         filterParts.push(`[${toOverlay}]hue=H=t*120:s=3[wave_hue_${specIdx}]`);
@@ -550,29 +543,28 @@ function buildSpectrumFilter(layer, specIdx, lastOutputLabel, filterParts) {
       toOverlay = `wave_hue_${specIdx}`;
     }
     
-    // Center image overlay
+    // Center image overlay with circular transparent crop
     if (layer.centerImageIndex) {
       const imgSize = Math.round(size / 2);
-      filterParts.push(`[${layer.centerImageIndex}:v]scale=${imgSize}:${imgSize}:force_original_aspect_ratio=decrease:flags=lanczos,pad=${imgSize}:${imgSize}:(ow-iw)/2:(oh-ih)/2:color=black@0.0,format=rgba[img_scaled_${specIdx}]`);
-      filterParts.push(`[img_scaled_${specIdx}]vignette=PI/2:mode=backward[img_circ_${specIdx}]`);
+      filterParts.push(`[${layer.centerImageIndex}:v]scale=${imgSize}:${imgSize}:force_original_aspect_ratio=increase,crop=${imgSize}:${imgSize},format=rgba[img_scaled_${specIdx}]`);
+      filterParts.push(`[img_scaled_${specIdx}]geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='if(gt(hypot(W/2-X, H/2-Y), W/2), 0, alpha(X,Y))'[img_circ_${specIdx}]`);
       filterParts.push(`[${toOverlay}][img_circ_${specIdx}]overlay=(W-w)/2:(H-h)/2[wave_with_img_${specIdx}]`);
       toOverlay = `wave_with_img_${specIdx}`;
     }
     
-    filterParts.push(`[${toOverlay}]scale=iw*${scale}:ih*${scale}:flags=lanczos[spec_scaled_${specIdx}]`);
-    filterParts.push(`[${lastOutputLabel}][spec_scaled_${specIdx}]overlay=${overlayX}:${overlayY}[${specOutput}]`);
+    // Scaled output
+    filterParts.push(`[${toOverlay}][${lastOutputLabel}]scale2ref=w='main_w*0.22*${scale}':h='main_w*0.22*${scale}':flags=lanczos[spec_scaled_${specIdx}][ref_spec_${specIdx}]`);
+    filterParts.push(`[ref_spec_${specIdx}][spec_scaled_${specIdx}]overlay=${overlayX}:${overlayY}:shortest=1[${specOutput}]`);
     
   } else {
-    // --- LINEAR SPECTRUM (mirip beat folder: elegant bars) ---
-    const width = 800;
-    const height = 200;
-    // mode=p2p = point-to-point wave, lebih halus. rate=25 = sinkron fps
+    // --- LINEAR SPECTRUM ---
+    const width = 600;
+    const height = 180;
     filterParts.push(`[aud_spec_${specIdx}]showwaves=size=${width}x${height}:mode=p2p:rate=25:colors=${hexColor}:scale=sqrt[wave_raw_${specIdx}]`);
-    filterParts.push(`[wave_raw_${specIdx}]format=rgba,colorkey=black:0.01:0.3[wave_trans_${specIdx}]`);
+    filterParts.push(`[wave_raw_${specIdx}]format=rgba,colorkey=black:0.1:0.2[wave_trans_${specIdx}]`);
     
     let toOverlay = `wave_trans_${specIdx}`;
     
-    // Rainbow coloring menggunakan hue filter (SANGAT ringan vs geq)
     if (isRainbow) {
       if (layer.colorMode === 'rainbow_running') {
         filterParts.push(`[${toOverlay}]hue=H=t*60:s=3[wave_hue_${specIdx}]`);
@@ -582,8 +574,8 @@ function buildSpectrumFilter(layer, specIdx, lastOutputLabel, filterParts) {
       toOverlay = `wave_hue_${specIdx}`;
     }
     
-    filterParts.push(`[${toOverlay}]scale=iw*${scale}:ih*${scale}:flags=lanczos[spec_scaled_${specIdx}]`);
-    filterParts.push(`[${lastOutputLabel}][spec_scaled_${specIdx}]overlay=${overlayX}:${overlayY}[${specOutput}]`);
+    filterParts.push(`[${toOverlay}][${lastOutputLabel}]scale2ref=w='main_w*0.35*${scale}':h='-1':flags=lanczos[spec_scaled_${specIdx}][ref_spec_${specIdx}]`);
+    filterParts.push(`[ref_spec_${specIdx}][spec_scaled_${specIdx}]overlay=${overlayX}:${overlayY}:shortest=1[${specOutput}]`);
   }
   
   return specOutput;
@@ -619,22 +611,53 @@ function buildTextFilter(layer, lastOutputLabel, filterParts) {
   return currentOutput;
 }
 
+// ========== HELPER: Detect WebM / VP9 alpha decoder ==========
+function getWebmDecoder(filePath) {
+  return new Promise((resolve) => {
+    ffmpeg.ffprobe(filePath, (err, meta) => {
+      if (!err && meta && meta.streams) {
+        const v = meta.streams.find(s => s.codec_type === 'video');
+        if (v && (v.codec_name === 'vp9' || (v.tags && v.tags.alpha_mode === '1'))) {
+          return resolve('libvpx-vp9');
+        }
+        if (v && v.codec_name === 'vp8') {
+          return resolve('libvpx');
+        }
+      }
+      resolve(null);
+    });
+  });
+}
+
 // ========== HELPER: Build image/sticker/watermark overlay filter (reusable) ==========
 function buildImageOverlayFilter(layer, inputObj, lastOutputLabel, filterParts) {
   const currentOutput = `v${inputObj.index}`;
   const scale = layer.scale || 1;
+  const rotation = layer.rotation || 0;
+  const preFmt = `pre_fmt_${inputObj.index}`;
   const scaledOutput = `scaled_${inputObj.index}`;
   const refOut = `ref_${inputObj.index}`;
 
-  // Menggunakan scale2ref agar kita bisa menghitung ukuran berdasarkan resolusi video utama (reference)
-  // Dalam scale2ref, 'iw' merujuk pada lebar video referensi
-  filterParts.push(`[${inputObj.index}:v][${lastOutputLabel}]scale2ref=w='iw*0.25*${scale}':h='-1':flags=lanczos[${scaledOutput}][${refOut}]`);
+  // Memaksa input stiker/gambar menjadi format rgba untuk menjaga transparansi (mencegah warna hitam / hijau pada background transparan)
+  filterParts.push(`[${inputObj.index}:v]format=rgba[${preFmt}]`);
+
+  let toScaleLabel = preFmt;
+
+  // Terapkan rotasi jika ada dengan background transparan (c=none)
+  if (rotation !== 0) {
+    const rotLabel = `rot_${inputObj.index}`;
+    const rad = (-rotation * Math.PI / 180).toFixed(6);
+    filterParts.push(`[${preFmt}]rotate=${rad}:c=none:ow=rotw(${rad}):oh=roth(${rad})[${rotLabel}]`);
+    toScaleLabel = rotLabel;
+  }
+
+  // Menggunakan scale2ref agar kita bisa menghitung ukuran proporsional 25% * scale dari lebar video referensi
+  filterParts.push(`[${toScaleLabel}][${lastOutputLabel}]scale2ref=w='main_w*0.25*${scale}':h='-1':flags=lanczos[${scaledOutput}][${refOut}]`);
   
   const overlayX = `(main_w*(${layer.x}/100))-overlay_w/2`;
   const overlayY = `(main_h*(${layer.y}/100))-overlay_h/2`;
-  let overlayFilter = `[${refOut}][${scaledOutput}]overlay=${overlayX}:${overlayY}`;
-  if (path.extname(layer.src).toLowerCase() === '.gif') overlayFilter += `:shortest=1`;
-  overlayFilter += `[${currentOutput}]`;
+  
+  let overlayFilter = `[${refOut}][${scaledOutput}]overlay=${overlayX}:${overlayY}:shortest=1[${currentOutput}]`;
   
   filterParts.push(overlayFilter);
   return currentOutput;
@@ -726,10 +749,10 @@ ipcMain.handle('start-render', async (event, options) => {
     return 0;
   });
 
-  let totalDurationSec = 900; // Default 15 menit
-  if (loopDuration === '30m') totalDurationSec = 1800;
-  if (loopDuration === '1h') totalDurationSec = 3600;
-  if (typeof loopDuration === 'number') totalDurationSec = loopDuration * 60;
+  let baseTotalDurationSec = 900; // Default 15 menit
+  if (loopDuration === '30m') baseTotalDurationSec = 1800;
+  if (loopDuration === '1h') baseTotalDurationSec = 3600;
+  if (typeof loopDuration === 'number') baseTotalDurationSec = loopDuration * 60;
 
   const results = [];
   const tempFiles = []; // Track temp files for cleanup
@@ -776,6 +799,10 @@ ipcMain.handle('start-render', async (event, options) => {
       const videoObj = typeof videos[i] === 'string' ? { path: videos[i], layers: [] } : videos[i];
       const videoPath = videoObj.path;
       const layers = videoObj.layers || [];
+
+      // Calculate randomized duration for this specific video (-60s to +120s tolerance)
+      let totalDurationSec = baseTotalDurationSec + Math.floor(Math.random() * 181) - 60;
+      if (totalDurationSec < 10) totalDurationSec = 10; // safety minimum 10 seconds
       
       // Prepare layers for safe looping
       for (let layer of layers) {
@@ -822,10 +849,9 @@ ipcMain.handle('start-render', async (event, options) => {
       }
       let currentEncoder = detectBestEncoder();
 
-      const runFFmpeg = (encoderToUse) => {
-        return new Promise((resolve, reject) => {
-          let command = ffmpeg();
-          activeFFmpegCommand = command;
+      const runFFmpeg = async (encoderToUse) => {
+        let command = ffmpeg();
+        activeFFmpegCommand = command;
           
           // Gunakan ping-pong video yang sudah di-preprocess atau foto dengan loop
           const isMainPhoto = /\.(jpg|jpeg|png|webp|bmp)$/i.test(loopVideoPath);
@@ -844,25 +870,33 @@ ipcMain.handle('start-render', async (event, options) => {
           let nextInputIndex = watermark ? 2 + randomizedAudios.length : 1 + randomizedAudios.length;
           
           let sortedLayers = [...layers].sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
-          sortedLayers.forEach(layer => {
+          for (let layer of sortedLayers) {
             if (layer.type === 'watermark' || layer.type === 'sticker' || layer.type === 'image') {
               const ext = path.extname(layer.src).toLowerCase();
               const isGif = ext === '.gif' || ext === '.mp4' || ext === '.mov' || ext === '.webm';
-              if (isGif) {
-                command.input(layer.src).inputOptions(['-stream_loop', '-1']);
-              } else {
-                command.input(layer.src).inputOptions(['-loop', '1', '-framerate', '30']);
+              const inputOpts = [];
+              if (ext === '.webm') {
+                const decoder = await getWebmDecoder(layer.src);
+                if (decoder) inputOpts.push('-vcodec', decoder);
               }
+              if (isGif) {
+                inputOpts.push('-stream_loop', '-1');
+              } else {
+                inputOpts.push('-loop', '1', '-framerate', '30');
+              }
+              command.input(layer.src).inputOptions(inputOpts);
               imageInputs.push({ layer, index: nextInputIndex++ });
             } else if (layer.type === 'spectrum' && layer.shape === 'circular' && layer.centerImage) {
               command.input(layer.centerImage).inputOptions(['-loop', '1', '-framerate', '30']);
               layer.centerImageIndex = nextInputIndex++;
             }
-          });
+          }
 
           // Mix audio first with normalization of sample rate and channels to prevent concat errors
           const audioStartIndex = watermark ? 2 : 1;
           let filterParts = [];
+
+          return new Promise((resolve, reject) => {
           
           if (randomizedAudios.length > 0) {
             let resampledLabels = [];
@@ -908,8 +942,9 @@ ipcMain.handle('start-render', async (event, options) => {
 
             // Apply Global Watermark
             if (watermark) {
-              filterParts.push(`[1:v]scale=150:-1[wm]`);
-              filterParts.push(`[${lastOutputLabel}][wm]overlay=W-w-20:H-h-20[out_wm]`);
+              filterParts.push(`[1:v]format=rgba[wm_fmt]`);
+              filterParts.push(`[wm_fmt][${lastOutputLabel}]scale2ref=w='main_w*0.12':h='-1':flags=lanczos[wm_scaled][ref_wm]`);
+              filterParts.push(`[ref_wm][wm_scaled]overlay=main_w-overlay_w-20:main_h-overlay_h-20:shortest=1[out_wm]`);
               lastOutputLabel = 'out_wm';
             }
 
@@ -1058,10 +1093,24 @@ ipcMain.handle('cancel-render', () => {
 
 ipcMain.handle('render-editor', async (event, options) => {
   isRenderCanceled = false;
-  const { mediaPath, mediaType, layers, outputPath, durationSec = 10 } = options;
+  let { mediaPath, mediaType, layers, outputPath, durationSec = 10 } = options;
 
   if (!mediaPath || !outputPath) {
     throw new Error('Media input dan output path wajib diisi!');
+  }
+
+  // Handle duplicate filenames automatically
+  if (fs.existsSync(outputPath)) {
+    const dir = path.dirname(outputPath);
+    const ext = path.extname(outputPath);
+    const base = path.basename(outputPath, ext);
+    let counter = 1;
+    let newPath = path.join(dir, `${base}_copy${ext}`);
+    while (fs.existsSync(newPath)) {
+      counter++;
+      newPath = path.join(dir, `${base}_copy_${counter}${ext}`);
+    }
+    outputPath = newPath;
   }
 
   const tempFiles = []; // Track temp files for cleanup
@@ -1093,33 +1142,40 @@ ipcMain.handle('render-editor', async (event, options) => {
 
     let currentEncoder = detectBestEncoder();
     
-    const runFFmpegEditor = (encoderToUse) => {
-      return new Promise((resolve, reject) => {
-        let command = ffmpeg();
-        activeFFmpegCommand = command;
-        let filterParts = [];
-        let sortedLayers = [...layers].sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
-        let nextInputIndex = 1;
-        let lastOutputLabel = '0:v';
+    const runFFmpegEditor = async (encoderToUse) => {
+      let command = ffmpeg();
+      activeFFmpegCommand = command;
+      let filterParts = [];
+      let sortedLayers = [...layers].sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
+      let nextInputIndex = 1;
+      let lastOutputLabel = '0:v';
 
-        command.input(mediaPath);
+      command.input(mediaPath);
 
-        let imageInputs = [];
-        sortedLayers.forEach(layer => {
-          if (layer.type === 'watermark' || layer.type === 'sticker' || layer.type === 'image') {
-            const ext = path.extname(layer.src).toLowerCase();
-            const isGif = ext === '.gif' || ext === '.mp4' || ext === '.mov' || ext === '.webm';
-            if (isGif) {
-              command.input(layer.src).inputOptions(['-stream_loop', '-1']);
-            } else {
-              command.input(layer.src).inputOptions(['-loop', '1', '-framerate', '30']);
-            }
-            imageInputs.push({ layer, index: nextInputIndex++ });
-          } else if (layer.type === 'spectrum' && layer.shape === 'circular' && layer.centerImage) {
-            command.input(layer.centerImage).inputOptions(['-loop', '1', '-framerate', '30']);
-            layer.centerImageIndex = nextInputIndex++;
+      let imageInputs = [];
+      for (let layer of sortedLayers) {
+        if (layer.type === 'watermark' || layer.type === 'sticker' || layer.type === 'image') {
+          const ext = path.extname(layer.src).toLowerCase();
+          const isGif = ext === '.gif' || ext === '.mp4' || ext === '.mov' || ext === '.webm';
+          const inputOpts = [];
+          if (ext === '.webm') {
+            const decoder = await getWebmDecoder(layer.src);
+            if (decoder) inputOpts.push('-vcodec', decoder);
           }
-        });
+          if (isGif) {
+            inputOpts.push('-stream_loop', '-1');
+          } else {
+            inputOpts.push('-loop', '1', '-framerate', '30');
+          }
+          command.input(layer.src).inputOptions(inputOpts);
+          imageInputs.push({ layer, index: nextInputIndex++ });
+        } else if (layer.type === 'spectrum' && layer.shape === 'circular' && layer.centerImage) {
+          command.input(layer.centerImage).inputOptions(['-loop', '1', '-framerate', '30']);
+          layer.centerImageIndex = nextInputIndex++;
+        }
+      }
+
+      return new Promise((resolve, reject) => {
 
         const spectrumLayers = sortedLayers.filter(l => l.type === 'spectrum');
         let finalAudioLabel = mediaType === 'video' ? '0:a' : null;
@@ -1168,7 +1224,7 @@ ipcMain.handle('render-editor', async (event, options) => {
         
         // Handle audio: map audio from video if present, or add silent audio if needed
         if (finalAudioLabel) {
-          outputOpts.push(`-map ${finalAudioLabel.includes(':') ? finalAudioLabel : `[${finalAudioLabel}]`}`);
+          outputOpts.push(`-map ${finalAudioLabel.includes(':') ? finalAudioLabel + '?' : `[${finalAudioLabel}]`}`);
           outputOpts.push('-c:a aac');
         } else {
           outputOpts.push('-map 0:a?');
