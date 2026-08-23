@@ -217,7 +217,7 @@ export default function EditorView({ outputDir, handleSelectFolder, allowOverwri
             <div className="grid grid-cols-2 gap-2">
               <button 
                 onClick={() => {
-                  const newLayer = { id: Date.now().toString(), type: 'text', content: t('editorNewText'), color: '#ffffff', fontSize: '48px', x: 50, y: 50, scale: 1, rotation: 0, zIndex: layers.length + 1, fontFamily: 'Arial', textAlign: 'center' };
+                  const newLayer = { id: Date.now().toString(), type: 'text', content: t('editorNewText'), color: '#ffffff', fontSize: '48px', fontWeight: 'normal', fontStyle: 'normal', x: 50, y: 50, scale: 1, rotation: 0, zIndex: layers.length + 1, fontFamily: 'Arial', textAlign: 'center' };
                   setLayers([...layers, newLayer]);
                   setSelectedLayerId(newLayer.id);
                 }} 

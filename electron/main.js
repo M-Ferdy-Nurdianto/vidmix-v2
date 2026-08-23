@@ -583,11 +583,6 @@ function buildSpectrumFilter(layer, specIdx, lastOutputLabel, filterParts) {
 
 // ========== HELPER: Build text drawtext filter (reusable) ==========
 function buildTextFilter(layer, lastOutputLabel, filterParts) {
-  const safeText = (layer.content || '')
-    .replace(/\\/g, '\\\\')
-    .replace(/'/g, "\\'")
-    .replace(/:/g, '\\:')
-    .replace(/%/g, '\\%');
   const fontSize = parseInt(layer.fontSize) || 24;
   // Fix: properly handle hex color for FFmpeg (both # and non-# formats)
   let fontColor = layer.color || 'white';
@@ -595,19 +590,43 @@ function buildTextFilter(layer, lastOutputLabel, filterParts) {
     fontColor = '0x' + fontColor.substring(1);
   }
   const resolvedFont = getWindowsFont(layer.fontFamily, layer.fontWeight === 'bold', layer.fontStyle === 'italic');
-  const fontFile = resolvedFont ? `fontfile='${resolvedFont.replace(/\\/g, '/')}':` : '';
-  let textX;
-  if (layer.textAlign === 'left' || layer.textAlign === 'justify') {
-    textX = `(w*(${layer.x}/100))`;
-  } else if (layer.textAlign === 'right') {
-    textX = `(w*(${layer.x}/100))-text_w`;
-  } else {
-    textX = `(w*(${layer.x}/100))-text_w/2`;
+  if (!resolvedFont) {
+    console.warn(`[buildTextFilter] Font tidak ditemukan untuk fontFamily="${layer.fontFamily}", bold=${layer.fontWeight === 'bold'}, italic=${layer.fontStyle === 'italic'}. FFmpeg akan pakai font default bawaan (biasanya beda tampilan dari preview).`);
   }
-  const textY = `(h*(${layer.y}/100))-text_h/2`;
-  const currentOutput = `t${Math.random().toString(36).substr(2, 5)}`;
-  
-  filterParts.push(`[${lastOutputLabel}]drawtext=${fontFile}text='${safeText}':fontcolor=${fontColor}:fontsize=${fontSize}:x=${textX}:y=${textY}:shadowcolor=black:shadowx=2:shadowy=2[${currentOutput}]`);
+  const fontFile = resolvedFont ? `fontfile='${resolvedFont.replace(/\\/g, '/')}':` : '';
+
+  // PENTING: drawtext FFmpeg tidak center-kan tiap baris secara independen kalau
+  // teksnya multi-line dalam SATU panggilan drawtext (baris pendek cuma rata kiri
+  // mengikuti baris terpanjang). Makanya di-split per baris, tiap baris dapat
+  // drawtext sendiri dengan x dihitung dari text_w baris itu sendiri.
+  const rawLines = (layer.content || '').split('\n');
+  const lineHeight = fontSize * 1.2;
+  const totalHeight = lineHeight * rawLines.length;
+  let currentOutput = lastOutputLabel;
+
+  rawLines.forEach((line, idx) => {
+    const safeText = line
+      .replace(/\\/g, '\\\\')
+      .replace(/'/g, "\\'")
+      .replace(/:/g, '\\:')
+      .replace(/%/g, '\\%');
+
+    let textX;
+    if (layer.textAlign === 'left' || layer.textAlign === 'justify') {
+      textX = `(w*(${layer.x}/100))`;
+    } else if (layer.textAlign === 'right') {
+      textX = `(w*(${layer.x}/100))-text_w`;
+    } else {
+      textX = `(w*(${layer.x}/100))-text_w/2`;
+    }
+    // Vertical-center seluruh blok multi-baris di titik layer.y, tiap baris di-offset lineHeight
+    const textY = `(h*(${layer.y}/100))-(${totalHeight}/2)+(${idx}*${lineHeight})`;
+
+    const nextOutput = `t${Math.random().toString(36).substr(2, 5)}`;
+    filterParts.push(`[${currentOutput}]drawtext=${fontFile}text='${safeText}':fontcolor=${fontColor}:fontsize=${fontSize}:x=${textX}:y=${textY}:shadowcolor=black:shadowx=2:shadowy=2[${nextOutput}]`);
+    currentOutput = nextOutput;
+  });
+
   return currentOutput;
 }
 

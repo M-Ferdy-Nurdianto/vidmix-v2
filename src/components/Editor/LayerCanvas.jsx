@@ -224,6 +224,16 @@ export default function LayerCanvas({ mediaPath, mediaType, layers, setLayers, s
  const isDraggingClass = isDragging ? 'outline outline-2 outline-dashed outline-yellow-400 outline-offset-4' : '';
  const isSelectedClass = isSelected ? 'outline outline-4 outline-solid outline-[#00FF55] outline-offset-4' : '';
  
+ // Anchor horizontal harus SAMA PERSIS dengan formula `textX` di buildTextFilter
+ // (electron/main.js): left/justify nempel di titik x (translateX 0%), right
+ // nempel ujung kanan di titik x (translateX -100%), center di tengah (-50%).
+ // Kalau ini gak sinkron, posisi teks di preview vs hasil render bakal geser.
+ let translateX = '-50%';
+ if (layer.type === 'text') {
+ if (layer.textAlign === 'left' || layer.textAlign === 'justify') translateX = '0%';
+ else if (layer.textAlign === 'right') translateX = '-100%';
+ }
+
  return (
  <div
  key={layer.id}
@@ -233,7 +243,7 @@ export default function LayerCanvas({ mediaPath, mediaType, layers, setLayers, s
  left: `${layer.x}%`,
  top: `${layer.y}%`,
  width: layer.type === 'watermark' ? '10%' : (['sticker', 'image'].includes(layer.type) ? '25%' : 'auto'),
- transform: `translate(-50%, -50%) scale(${layer.scale || 1}) rotate(${layer.rotation || 0}deg)`,
+ transform: `translate(${translateX}, -50%) scale(${layer.scale || 1}) rotate(${layer.rotation || 0}deg)`,
  zIndex: layer.zIndex || 10,
  }}
  className={`${layer.type !== 'watermark' ? 'cursor-move' : 'cursor-default'} select-none ${isSelectedClass} ${isDraggingClass} ${isHoveredClass}`}
@@ -273,12 +283,17 @@ export default function LayerCanvas({ mediaPath, mediaType, layers, setLayers, s
  <div style={{ 
  color: layer.color || '#00F0FF', 
  fontSize: layer.fontSize || '24px', 
- fontWeight: layer.fontWeight || 'bold', 
+ // Default 'normal', BUKAN 'bold' -- harus sama persis dengan default
+ // di buildTextFilter (electron/main.js, cek fontWeight === 'bold') dan
+ // tombol Bold di LayerControlPanel.jsx, biar preview & output senada.
+ fontWeight: layer.fontWeight === 'bold' ? 'bold' : 'normal', 
  fontFamily: layer.fontFamily || 'Arial',
- fontStyle: layer.fontStyle || 'normal',
+ fontStyle: layer.fontStyle === 'italic' ? 'italic' : 'normal',
  textShadow: '2px 2px 0px rgba(0,0,0,1)', 
  whiteSpace: 'pre',
- textAlign: layer.textAlign || 'center'
+ textAlign: layer.textAlign || 'center',
+ width: 'max-content',
+ maxWidth: '60vw'
  }}>
  {layer.content}
  </div>

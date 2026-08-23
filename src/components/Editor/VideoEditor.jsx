@@ -96,7 +96,7 @@ export default function VideoEditor({
             <div className="grid grid-cols-2 gap-2">
               <button 
                 onClick={() => {
-                  const newLayer = { id: Date.now().toString(), type: 'text', content: 'Teks Baru', color: '#ffffff', fontSize: '48px', x: 50, y: 50, scale: 1, rotation: 0, zIndex: (videos.find(v => v.id === editingVideoId)?.layers.length || 0) + 1, fontFamily: 'Arial', textAlign: 'center' };
+                  const newLayer = { id: Date.now().toString(), type: 'text', content: 'Teks Baru', color: '#ffffff', fontSize: '48px', fontWeight: 'normal', fontStyle: 'normal', x: 50, y: 50, scale: 1, rotation: 0, zIndex: (videos.find(v => v.id === editingVideoId)?.layers.length || 0) + 1, fontFamily: 'Arial', textAlign: 'center' };
                   setVideos(prev => prev.map(v => v.id === editingVideoId ? { ...v, layers: [...v.layers, newLayer] } : v));
                   setSelectedLayerId(newLayer.id);
                 }} 
