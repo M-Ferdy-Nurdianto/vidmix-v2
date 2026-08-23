@@ -278,7 +278,7 @@ export default function LayerCanvas({ mediaPath, mediaType, layers, setLayers, s
  fontStyle: layer.fontStyle || 'normal',
  textShadow: '2px 2px 0px rgba(0,0,0,1)', 
  whiteSpace: 'pre',
- textAlign: 'center'
+ textAlign: layer.textAlign || 'center'
  }}>
  {layer.content}
  </div>

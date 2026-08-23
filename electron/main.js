@@ -441,13 +441,19 @@ function detectBestEncoder() {
 function getWindowsFont(fontFamily, isBold, isItalic) {
   const basePaths = {
     'Arial': 'arial',
-    'Impact': 'impact',
+    'Calibri': 'calibri',
+    'Cambria': 'cambria',
     'Comic Sans MS': 'comic',
-    'Trebuchet MS': 'trebuc',
-    'Verdana': 'verdana',
+    'Consolas': 'consola',
+    'Courier New': 'cour',
+    'Georgia': 'georgia',
+    'Impact': 'impact',
+    'Lucida Console': 'lucon',
+    'Segoe UI': 'segoeui',
     'Tahoma': 'tahoma',
     'Times New Roman': 'times',
-    'Courier New': 'cour'
+    'Trebuchet MS': 'trebuc',
+    'Verdana': 'verdana'
   };
   let base = basePaths[fontFamily] || 'arial';
   let suffix = '';
@@ -566,7 +572,11 @@ function buildSpectrumFilter(layer, specIdx, lastOutputLabel, filterParts) {
 
 // ========== HELPER: Build text drawtext filter (reusable) ==========
 function buildTextFilter(layer, lastOutputLabel, filterParts) {
-  const safeText = (layer.content || '').replace(/[':]/g, '\\$&');
+  const safeText = (layer.content || '')
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/:/g, '\\:')
+    .replace(/%/g, '\\%');
   const fontSize = parseInt(layer.fontSize) || 24;
   // Fix: properly handle hex color for FFmpeg (both # and non-# formats)
   let fontColor = layer.color || 'white';
@@ -575,7 +585,14 @@ function buildTextFilter(layer, lastOutputLabel, filterParts) {
   }
   const resolvedFont = getWindowsFont(layer.fontFamily, layer.fontWeight === 'bold', layer.fontStyle === 'italic');
   const fontFile = resolvedFont ? `fontfile='${resolvedFont.replace(/\\/g, '/')}':` : '';
-  const textX = `(w*(${layer.x}/100))-text_w/2`;
+  let textX;
+  if (layer.textAlign === 'left' || layer.textAlign === 'justify') {
+    textX = `(w*(${layer.x}/100))`;
+  } else if (layer.textAlign === 'right') {
+    textX = `(w*(${layer.x}/100))-text_w`;
+  } else {
+    textX = `(w*(${layer.x}/100))-text_w/2`;
+  }
   const textY = `(h*(${layer.y}/100))-text_h/2`;
   const currentOutput = `t${Math.random().toString(36).substr(2, 5)}`;
   

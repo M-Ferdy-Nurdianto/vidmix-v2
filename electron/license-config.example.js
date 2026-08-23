@@ -11,5 +11,6 @@
 
 module.exports = {
   GIST_ID: 'YOUR_SECRET_GIST_ID_HERE', // Ganti dengan ID Gist Anda
+  GITHUB_USERNAME: 'YOUR_GITHUB_USERNAME', // Ganti dengan username GitHub Anda
   GIST_FILENAME: 'vidmix-licenses.json',
 };

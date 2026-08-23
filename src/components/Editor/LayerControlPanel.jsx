@@ -1,5 +1,5 @@
 import React from 'react';
-import { Trash2, Bold, Italic } from 'lucide-react';
+import { Trash2, Bold, Italic, AlignLeft, AlignCenter, AlignRight, AlignJustify } from 'lucide-react';
 
 export default function LayerControlPanel({ selectedLayerId, layers, setLayers, setSelectedLayerId }) {
  if (!selectedLayerId) return null;
@@ -46,14 +46,51 @@ export default function LayerControlPanel({ selectedLayerId, layers, setLayers, 
  className="w-full bg-zinc-100 border-4 border-black px-3 py-2 text-sm text-black font-bold focus:outline-none focus:bg-[#FFE500] shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-colors cursor-pointer appearance-none"
  >
  <option value="Arial">Arial</option>
- <option value="Impact">Impact</option>
+ <option value="Calibri">Calibri</option>
+ <option value="Cambria">Cambria</option>
  <option value="Comic Sans MS">Comic Sans MS</option>
- <option value="Trebuchet MS">Trebuchet MS</option>
- <option value="Verdana">Verdana</option>
+ <option value="Consolas">Consolas</option>
+ <option value="Courier New">Courier New</option>
+ <option value="Georgia">Georgia</option>
+ <option value="Impact">Impact</option>
+ <option value="Lucida Console">Lucida Console</option>
+ <option value="Segoe UI">Segoe UI</option>
  <option value="Tahoma">Tahoma</option>
  <option value="Times New Roman">Times New Roman</option>
- <option value="Courier New">Courier New</option>
+ <option value="Trebuchet MS">Trebuchet MS</option>
+ <option value="Verdana">Verdana</option>
  </select>
+ </div>
+
+ <div>
+ <label className="text-xs font-black uppercase block mb-2">Text Align</label>
+ <div className="flex gap-2">
+ <button 
+ onClick={() => updateLayer({ textAlign: 'left' })}
+ className={`flex-1 flex justify-center items-center py-2 border-4 border-black transition-colors shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-y-[2px] hover:shadow-none active:bg-black active:text-white ${layer.textAlign === 'left' ? 'bg-[#FFE500]' : 'bg-zinc-100'}`}
+ >
+ <AlignLeft size={18} />
+ </button>
+ <button 
+ onClick={() => updateLayer({ textAlign: 'center' })}
+ className={`flex-1 flex justify-center items-center py-2 border-4 border-black transition-colors shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-y-[2px] hover:shadow-none active:bg-black active:text-white ${(!layer.textAlign || layer.textAlign === 'center') ? 'bg-[#FFE500]' : 'bg-zinc-100'}`}
+ >
+ <AlignCenter size={18} />
+ </button>
+ <button 
+ onClick={() => updateLayer({ textAlign: 'right' })}
+ className={`flex-1 flex justify-center items-center py-2 border-4 border-black transition-colors shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-y-[2px] hover:shadow-none active:bg-black active:text-white ${layer.textAlign === 'right' ? 'bg-[#FFE500]' : 'bg-zinc-100'}`}
+ >
+ <AlignRight size={18} />
+ </button>
+ <button 
+ onClick={() => updateLayer({ textAlign: 'justify' })}
+ className={`flex-1 flex justify-center items-center py-2 border-4 border-black transition-colors shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-y-[2px] hover:shadow-none active:bg-black active:text-white ${layer.textAlign === 'justify' ? 'bg-[#FFE500]' : 'bg-zinc-100'}`}
+ title="Justify (Rendered as Left in Video)"
+ >
+ <AlignJustify size={18} />
+ </button>
+ </div>
  </div>
  
  <div className="flex gap-4">
