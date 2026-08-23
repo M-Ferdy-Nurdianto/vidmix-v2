@@ -587,12 +587,16 @@ function buildTextFilter(layer, lastOutputLabel, filterParts) {
 function buildImageOverlayFilter(layer, inputObj, lastOutputLabel, filterParts) {
   const currentOutput = `v${inputObj.index}`;
   const scale = layer.scale || 1;
-  // Gunakan filter lanczos agar saat di-zoom (upscale) gambarnya tetap halus dan tidak pecah (burik)
-  filterParts.push(`[${inputObj.index}:v]scale=iw*${scale}:ih*${scale}:flags=lanczos[scaled_${inputObj.index}]`);
+  const scaledOutput = `scaled_${inputObj.index}`;
+  const refOut = `ref_${inputObj.index}`;
+
+  // Menggunakan scale2ref agar kita bisa menghitung ukuran berdasarkan resolusi video utama (reference)
+  // Dalam scale2ref, 'iw' merujuk pada lebar video referensi
+  filterParts.push(`[${inputObj.index}:v][${lastOutputLabel}]scale2ref=w='iw*0.25*${scale}':h='-1':flags=lanczos[${scaledOutput}][${refOut}]`);
   
   const overlayX = `(main_w*(${layer.x}/100))-overlay_w/2`;
   const overlayY = `(main_h*(${layer.y}/100))-overlay_h/2`;
-  let overlayFilter = `[${lastOutputLabel}][scaled_${inputObj.index}]overlay=${overlayX}:${overlayY}`;
+  let overlayFilter = `[${refOut}][${scaledOutput}]overlay=${overlayX}:${overlayY}`;
   if (path.extname(layer.src).toLowerCase() === '.gif') overlayFilter += `:shortest=1`;
   overlayFilter += `[${currentOutput}]`;
   
@@ -643,9 +647,35 @@ function createPingPongVideo(videoPath) {
   });
 }
 
+// ========== HELPER: Clean/prepare media for safe looping ==========
+// Removes audio and remuxes container to fix Matroska 'Duplicate element' errors when stream looping
+function prepareLoopableMedia(mediaPath) {
+  return new Promise((resolve, reject) => {
+    if (!mediaPath) return resolve(mediaPath);
+    const ext = path.extname(mediaPath).toLowerCase();
+    if (!['.webm', '.mp4', '.mov'].includes(ext)) {
+      return resolve(mediaPath);
+    }
+    const tempDir = os.tmpdir();
+    const tempFile = path.join(tempDir, `vidmix_loop_${Date.now()}${ext}`);
+    
+    ffmpeg(mediaPath)
+      .outputOptions([
+        '-c copy',
+        '-an',
+        '-y'
+      ])
+      .save(tempFile)
+      .on('end', () => resolve(tempFile))
+      .on('error', (err) => {
+        reject(new Error(`File stiker/watermark "${path.basename(mediaPath)}" rusak atau formatnya tidak didukung. Gagal diproses oleh sistem (Detail: ${err.message}). Cobalah gunakan file lain atau convert ulang file tersebut.`));
+      });
+  });
+}
+
 ipcMain.handle('start-render', async (event, options) => {
   isRenderCanceled = false;
-  const { videos, audios, outputDir, customName, loopDuration, watermark, allowOverwrite, audioOrderType, compressionLevel = 'medium' } = options;
+  let { videos, audios, outputDir, customName, loopDuration, watermark, allowOverwrite, audioOrderType, compressionLevel = 'medium' } = options;
   
   if (!videos.length || !audios.length || !outputDir) {
     throw new Error('Video, Musik, dan Folder Output wajib diisi!');
@@ -671,7 +701,10 @@ ipcMain.handle('start-render', async (event, options) => {
   // Pre-flight check: pastikan file output belum ada untuk mencegah overwrite tanpa sengaja
   if (!allowOverwrite) {
     for (let i = 0; i < videos.length; i++) {
-      const outputFileName = `${customName} ${i + 1}.mp4`;
+      const videoObj = typeof videos[i] === 'string' ? { path: videos[i] } : videos[i];
+      const originalName = path.parse(videoObj.path).name;
+      const finalName = customName ? `${customName} ${i + 1}` : originalName;
+      const outputFileName = `${finalName}.mp4`;
       const outputPath = path.join(outputDir, outputFileName);
       if (fs.existsSync(outputPath)) {
         throw new Error(`File '${outputFileName}' sudah ada! Aktifkan "Timpa File (Overwrite)" atau ganti nama output.`);
@@ -681,15 +714,36 @@ ipcMain.handle('start-render', async (event, options) => {
 
   isRendering = true;
   try {
+    if (watermark) {
+      watermark = await prepareLoopableMedia(watermark);
+      if (watermark !== options.watermark) tempFiles.push(watermark);
+    }
+
     for (let i = 0; i < videos.length; i++) {
       // videos can be string (path) or object { path, layers }
       const videoObj = typeof videos[i] === 'string' ? { path: videos[i], layers: [] } : videos[i];
       const videoPath = videoObj.path;
       const layers = videoObj.layers || [];
       
+      // Prepare layers for safe looping
+      for (let layer of layers) {
+        if (['watermark', 'sticker', 'image'].includes(layer.type)) {
+          const ext = path.extname(layer.src).toLowerCase();
+          if (['.webm', '.mp4', '.mov'].includes(ext)) {
+            const originalSrc = layer.src;
+            layer.src = await prepareLoopableMedia(layer.src);
+            if (layer.src !== originalSrc) tempFiles.push(layer.src);
+          }
+        }
+      }
+      
       // Tentukan urutan lagu (acak atau sesuai urutan custom)
       const randomizedAudios = audioOrderType === 'custom' ? [...audios] : shuffleArray(audios);
-      const outputFileName = `${customName} ${i + 1}.mp4`;
+      
+      const originalName = path.parse(videoPath).name;
+      const finalName = customName ? `${customName} ${i + 1}` : originalName;
+      const outputFileName = `${finalName}.mp4`;
+      
       const outputPath = path.join(outputDir, outputFileName);
 
       if (isRenderCanceled) break;
@@ -779,8 +833,14 @@ ipcMain.handle('start-render', async (event, options) => {
           let lastOutputLabel = '0:v';
           
           if (!isFastRender) {
-            // Ensure even dimensions for libx264 compatibility (especially important for photos)
-            filterParts.push(`[${lastOutputLabel}]scale=trunc(iw/2)*2:trunc(ih/2)*2[main_v_even]`);
+            // Untuk foto (PNG/JPEG), konversi format ke yuv420p dulu agar alpha channel di-strip
+            // Ini penting karena PNG bisa punya RGBA (4 channel) yang tidak didukung h264 encoder
+            if (isMainPhoto) {
+              filterParts.push(`[${lastOutputLabel}]format=yuv420p,scale=trunc(iw/2)*2:trunc(ih/2)*2[main_v_even]`);
+            } else {
+              // Ensure even dimensions for libx264 compatibility
+              filterParts.push(`[${lastOutputLabel}]scale=trunc(iw/2)*2:trunc(ih/2)*2[main_v_even]`);
+            }
             lastOutputLabel = 'main_v_even';
 
             // Apply Global Watermark
@@ -841,7 +901,7 @@ ipcMain.handle('start-render', async (event, options) => {
               else if (compressionLevel === 'high') outputOpts.push('-crf', '28');
               else outputOpts.push('-crf', '23');
             } else {
-              if (encoderToUse === 'h264_nvenc') outputOpts.push('-preset', 'fast');
+              if (encoderToUse === 'h264_nvenc') outputOpts.push('-preset', 'p4');
               if (compressionLevel === 'low') outputOpts.push('-b:v', '8M');
               else if (compressionLevel === 'high') outputOpts.push('-b:v', '2M');
               else outputOpts.push('-b:v', '4M');
@@ -941,8 +1001,22 @@ ipcMain.handle('render-editor', async (event, options) => {
     throw new Error('Media input dan output path wajib diisi!');
   }
 
+  const tempFiles = []; // Track temp files for cleanup
+
   isRendering = true;
   try {
+    // Prepare layers for safe looping
+    for (let layer of layers) {
+      if (['watermark', 'sticker', 'image'].includes(layer.type)) {
+        const ext = path.extname(layer.src).toLowerCase();
+        if (['.webm', '.mp4', '.mov'].includes(ext)) {
+          const originalSrc = layer.src;
+          layer.src = await prepareLoopableMedia(layer.src);
+          if (layer.src !== originalSrc) tempFiles.push(layer.src);
+        }
+      }
+    }
+
     let currentEncoder = detectBestEncoder();
     
     const runFFmpegEditor = (encoderToUse) => {
@@ -991,6 +1065,13 @@ ipcMain.handle('render-editor', async (event, options) => {
         }
 
         let specIdx = 0;
+
+        // Untuk foto, konversi format ke yuv420p dan pastikan dimensi genap
+        if (mediaType === 'photo') {
+          filterParts.push(`[${lastOutputLabel}]format=yuv420p,scale=trunc(iw/2)*2:trunc(ih/2)*2[main_v_even]`);
+          lastOutputLabel = 'main_v_even';
+        }
+
         // Build complex filter menggunakan reusable helper functions
         sortedLayers.forEach(layer => {
           if (['watermark', 'sticker', 'image'].includes(layer.type)) {
@@ -1033,7 +1114,7 @@ ipcMain.handle('render-editor', async (event, options) => {
         if (encoderToUse === 'libx264') {
           outputOpts.push('-preset', 'ultrafast');
         } else if (encoderToUse === 'h264_nvenc') {
-          outputOpts.push('-preset', 'fast');
+          outputOpts.push('-preset', 'p4');
         }
 
         if (filterParts.length > 0) {
@@ -1099,6 +1180,10 @@ ipcMain.handle('render-editor', async (event, options) => {
     return outputPath;
   } finally {
     isRendering = false;
+    // Cleanup temp prepared files
+    tempFiles.forEach(f => {
+      try { if (fs.existsSync(f)) fs.unlinkSync(f); } catch (e) {}
+    });
   }
 });
 

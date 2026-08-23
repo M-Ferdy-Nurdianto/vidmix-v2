@@ -232,6 +232,7 @@ export default function LayerCanvas({ mediaPath, mediaType, layers, setLayers, s
  position: 'absolute',
  left: `${layer.x}%`,
  top: `${layer.y}%`,
+ width: ['watermark', 'sticker', 'image'].includes(layer.type) ? '25%' : 'auto',
  transform: `translate(-50%, -50%) scale(${layer.scale || 1}) rotate(${layer.rotation || 0}deg)`,
  zIndex: layer.zIndex || 10,
  }}
@@ -289,14 +290,14 @@ export default function LayerCanvas({ mediaPath, mediaType, layers, setLayers, s
       src={`file://${layer.src}`} 
       autoPlay loop muted 
       className="pointer-events-none"
-      style={{ maxWidth: '300px', maxHeight: '300px', objectFit: 'contain' }}
+      style={{ width: '100%', height: 'auto', objectFit: 'contain' }}
     />
   ) : (
     <img 
       src={`file://${layer.src}`} 
       alt={layer.type} 
       className="pointer-events-none"
-      style={{ maxWidth: '300px', maxHeight: '300px', objectFit: 'contain' }}
+      style={{ width: '100%', height: 'auto', objectFit: 'contain' }}
       draggable="false"
     />
   )

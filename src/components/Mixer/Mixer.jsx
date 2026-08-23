@@ -146,8 +146,19 @@ export default function Mixer({
           
           {/* Panel Folder Sources */}
           <div className="border-4 border-black bg-yellow-400 p-5 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
-            <h2 className="text-lg font-black mb-4 flex items-center gap-2 border-b-4 border-black pb-2">
-              <FolderOpen className="w-5 h-5"/> Direktori Sumber Berkelanjutan
+            <h2 className="text-lg font-black mb-4 flex items-center justify-between border-b-4 border-black pb-2">
+              <span className="flex items-center gap-2"><FolderOpen className="w-5 h-5"/> Direktori Sumber Berkelanjutan</span>
+              <button 
+                onClick={() => {
+                  setVideos([]);
+                  setAudios([]);
+                  toast.success('Semua media berhasil dihapus!');
+                }}
+                className="bg-red-500 hover:bg-red-600 text-white border-2 border-black px-3 py-1 text-xs font-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5"
+                title="Hapus semua video dan musik"
+              >
+                CLEAR ALL
+              </button>
             </h2>
 
             <div className="space-y-3">
@@ -243,7 +254,9 @@ export default function Mixer({
                     {allowOverwrite ? 'TIMPA (ON)' : 'TIMPA (OFF)'}
                   </button>
                 </div>
-                <p className="text-[10px] text-zinc-500 mt-1">Hasil nanti otomatis: <b>{customName || 'nama'} 1 - 5.mp4</b></p>
+                <p className="text-[10px] text-zinc-500 mt-1">
+                  Hasil nanti otomatis: <b>{customName ? `${customName} 1 - 5.mp4` : 'Mengikuti nama asli file'}</b>
+                </p>
               </div>
 
               <div>
