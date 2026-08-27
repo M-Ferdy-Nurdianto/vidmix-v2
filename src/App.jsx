@@ -201,15 +201,15 @@ export default function App() {
             const newFiles = result.filter(path => !currentPaths.has(path));
             if (newFiles.length === 0) return prev;
             
-            const availableSlots = 20 - prev.length;
+            const availableSlots = 50 - prev.length;
             if (availableSlots <= 0) {
-              toast.error('Maksimal 20 Musik sudah tercapai!');
+              toast.error('Maksimal 50 Musik sudah tercapai!');
               return prev;
             }
             
             const limitedAudios = newFiles.slice(0, availableSlots);
             if (newFiles.length > availableSlots) {
-              toast.error(`Hanya ${availableSlots} musik yang ditambahkan (Maks 20).`);
+              toast.error(`Hanya ${availableSlots} musik yang ditambahkan (Maks 50).`);
             } else {
               toast.success(`${limitedAudios.length} Musik Ditambahkan!`);
             }
@@ -263,15 +263,15 @@ export default function App() {
         const newFiles = filtered.filter(path => !currentPaths.has(path));
         if (newFiles.length === 0) return prev;
         
-        const availableSlots = 20 - prev.length;
+        const availableSlots = 50 - prev.length;
         if (availableSlots <= 0) {
-          toast.error('Maksimal 20 Musik sudah tercapai!');
+          toast.error('Maksimal 50 Musik sudah tercapai!');
           return prev;
         }
         
         const limitedAudios = newFiles.slice(0, availableSlots);
         if (newFiles.length > availableSlots) {
-          toast.error(`Hanya ${availableSlots} musik yang ditambahkan (Maks 20).`);
+          toast.error(`Hanya ${availableSlots} musik yang ditambahkan (Maks 50).`);
         } else {
           toast.success(`${limitedAudios.length} Musik Ditambahkan (Drop)!`);
         }

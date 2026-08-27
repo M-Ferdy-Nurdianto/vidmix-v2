@@ -1045,22 +1045,22 @@ ipcMain.handle('start-render', async (event, options) => {
             if (encoderToUse === 'libx264') {
               outputOpts.push('-preset', 'ultrafast');
               if (compressionLevel === 'low') {
-                outputOpts.push('-crf', '22');
+                outputOpts.push('-crf', '22', '-b:a', '192k');
               } else if (compressionLevel === 'high') {
-                // Extreme Kompresi: Target ~25-35 MB per 15 menit (~100-150 MB per 1 jam)
-                outputOpts.push('-crf', '36', '-b:v', '250k', '-maxrate', '350k', '-bufsize', '600k', '-b:a', '64k');
+                // Extreme Kompresi Video: Video dikompresi (~250k / CRF 36), Audio tetap jernih (192k)
+                outputOpts.push('-crf', '36', '-b:v', '250k', '-maxrate', '350k', '-bufsize', '600k', '-b:a', '192k');
               } else {
-                outputOpts.push('-crf', '26', '-b:a', '128k');
+                outputOpts.push('-crf', '26', '-b:a', '192k');
               }
             } else {
               if (encoderToUse === 'h264_nvenc') outputOpts.push('-preset', 'p4');
               if (compressionLevel === 'low') {
-                outputOpts.push('-b:v', '6M');
+                outputOpts.push('-b:v', '6M', '-b:a', '192k');
               } else if (compressionLevel === 'high') {
-                // Extreme Kompresi GPU: Target ~25-35 MB per 15 menit (~100-150 MB per 1 jam)
-                outputOpts.push('-b:v', '250k', '-maxrate', '350k', '-bufsize', '600k', '-b:a', '64k');
+                // Extreme Kompresi GPU: Video dikompresi (~250k), Audio tetap jernih (192k)
+                outputOpts.push('-b:v', '250k', '-maxrate', '350k', '-bufsize', '600k', '-b:a', '192k');
               } else {
-                outputOpts.push('-b:v', '2.5M', '-b:a', '128k');
+                outputOpts.push('-b:v', '2.5M', '-b:a', '192k');
               }
             }
           }

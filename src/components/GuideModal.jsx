@@ -81,18 +81,18 @@ export default function GuideModal({ onClose }) {
                     <tr className="border-b border-black">
                       <td className="border-2 border-black p-2 bg-blue-100 font-black text-blue-900">{t('balanced')}</td>
                       <td className="border-2 border-black p-2">{t('guideBalancedDesc')}</td>
-                      <td className="border-2 border-black p-2">~250 - 350 MB</td>
-                      <td className="border-2 border-black p-2">~500 - 700 MB</td>
-                      <td className="border-2 border-black p-2">~1.0 - 1.5 GB</td>
-                      <td className="border-2 border-black p-2">~18 MB / min</td>
+                      <td className="border-2 border-black p-2">~260 - 360 MB</td>
+                      <td className="border-2 border-black p-2">~520 - 720 MB</td>
+                      <td className="border-2 border-black p-2">~1.1 - 1.5 GB</td>
+                      <td className="border-2 border-black p-2">~19 MB / min</td>
                     </tr>
                     <tr>
                       <td className="border-2 border-black p-2 bg-yellow-100 font-black text-amber-950">{t('smallSize')} 🔥</td>
                       <td className="border-2 border-black p-2">{t('guideUltraDesc')}</td>
-                      <td className="border-2 border-black p-2 font-black text-green-700">~25 - 35 MB</td>
-                      <td className="border-2 border-black p-2 font-black text-green-700">~55 - 70 MB</td>
-                      <td className="border-2 border-black p-2 font-black text-green-700">~110 - 150 MB</td>
-                      <td className="border-2 border-black p-2 font-black text-green-700">~2 MB / min</td>
+                      <td className="border-2 border-black p-2 font-black text-green-700">~35 - 50 MB</td>
+                      <td className="border-2 border-black p-2 font-black text-green-700">~70 - 95 MB</td>
+                      <td className="border-2 border-black p-2 font-black text-green-700">~140 - 190 MB</td>
+                      <td className="border-2 border-black p-2 font-black text-green-700">~2.5 - 3 MB / min</td>
                     </tr>
                   </tbody>
                 </table>
