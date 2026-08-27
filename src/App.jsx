@@ -181,15 +181,15 @@ export default function App() {
             const newFiles = result.filter(path => !currentPaths.has(path));
             if (newFiles.length === 0) return prev;
             
-            const availableSlots = 5 - prev.length;
+            const availableSlots = 10 - prev.length;
             if (availableSlots <= 0) {
-              toast.error('Maksimal 5 Video sudah tercapai!');
+              toast.error('Maksimal 10 Video sudah tercapai!');
               return prev;
             }
             
             const limitedVideos = newFiles.slice(0, availableSlots).map((path, i) => ({ id: Date.now().toString() + i + Math.random(), path, layers: [] }));
             if (newFiles.length > availableSlots) {
-              toast.error(`Hanya ${availableSlots} video yang ditambahkan (Maks 5).`);
+              toast.error(`Hanya ${availableSlots} video yang ditambahkan (Maks 10).`);
             } else {
               toast.success(`${limitedVideos.length} Video Ditambahkan!`);
             }
@@ -242,15 +242,15 @@ export default function App() {
         const newFiles = filtered.filter(path => !currentPaths.has(path));
         if (newFiles.length === 0) return prev;
         
-        const availableSlots = 5 - prev.length;
+        const availableSlots = 10 - prev.length;
         if (availableSlots <= 0) {
-          toast.error('Maksimal 5 Video sudah tercapai!');
+          toast.error('Maksimal 10 Video sudah tercapai!');
           return prev;
         }
         
         const limitedVideos = newFiles.slice(0, availableSlots).map((path, i) => ({ id: Date.now().toString() + i + Math.random(), path, layers: [] }));
         if (newFiles.length > availableSlots) {
-          toast.error(`Hanya ${availableSlots} video yang ditambahkan (Maks 5).`);
+          toast.error(`Hanya ${availableSlots} video yang ditambahkan (Maks 10).`);
         } else {
           toast.success(`${limitedVideos.length} Video Ditambahkan (Drop)!`);
         }
